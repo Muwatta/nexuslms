@@ -2,11 +2,12 @@ from rest_framework import viewsets, filters, status
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Profile, Course, Enrollment, Quiz, QuizSubmission, Payment
-from .serializers import ProfileSerializer, CourseSerializer, EnrollmentSerializer, QuizSerializer, QuizSubmissionSerializer, PaymentSerializer
+from .models import Profile, Course, Enrollment, Quiz, QuizSubmission, Assignment, Payment, AssignmentSubmission
+from .serializers import ProfileSerializer, CourseSerializer, EnrollmentSerializer, QuizSerializer, QuizSubmissionSerializer, AssignmentSubmissionSerializer, PaymentSerializer, AssignmentSerializer
 from rest_framework.decorators import action, api_view, permission_classes
 from django.db.models import Avg
-# Profiles (already exists)
+from paystackapi.transaction import Transaction
+
 class ProfileViewSet(viewsets.ModelViewSet):
     serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated]
@@ -119,6 +120,18 @@ def course_analytics(request, course_id):
         "avg_score": avg_scores
     })
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def student_analytics(request, student_id):
+    submissions = QuizSubmission.objects.filter(student_id=student_id)
+    avg_score = submissions.aggregate(Avg("score"))["score__avg"] or 0
+
+    return Response({
+        "student_id": student_id,
+        "average_quiz_score": avg_score,
+        "total_quizzes": submissions.count()
+    })
+
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
@@ -127,3 +140,53 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(student=self.request.user.profile)
+
+class AssignmentViewSet(viewsets.ModelViewSet):
+    queryset = Assignment.objects.all()
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Assignment.objects.all()
+
+class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
+    queryset = AssignmentSubmission.objects.all()
+    serializer_class = AssignmentSubmissionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+
+        if user.profile.role == "student":
+            return qs.filter(student=user.profile)
+        elif user.profile.role == "instructor":
+            return qs.filter(assignment__course__instructor=user.profile)
+
+        return qs
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    serializer_class = PaymentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Payment.objects.filter(student=self.request.user.profile)
+
+    @action(detail=False, methods=["post"])
+    def verify(self, request):
+        reference = request.data.get("reference")
+        response = Transaction.verify(reference)
+
+        if response["status"]:
+            payment = Payment.objects.get(reference=reference)
+            payment.status = "success"
+            payment.save()
+
+            Enrollment.objects.get_or_create(
+                student=payment.student,
+                course=payment.course
+            )
+
+            return Response({"detail": "Payment verified"})
+        return Response({"detail": "Verification failed"}, status=400)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Profile, Course, Enrollment, Quiz, QuizSubmission, Payment
+from .models import Profile, Course, Enrollment, Quiz, QuizSubmission, Assignment, Payment, AssignmentSubmission
 
 class ProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username")
@@ -27,6 +27,16 @@ class QuizSerializer(serializers.ModelSerializer):
 class QuizSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = QuizSubmission
+        fields = "__all__"
+
+class AssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Assignment
+        fields = "__all__"
+
+class AssignmentSubmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssignmentSubmission
         fields = "__all__"
 
 class PaymentSerializer(serializers.ModelSerializer):

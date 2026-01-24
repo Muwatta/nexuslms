@@ -76,13 +76,26 @@ class QuizSubmission(models.Model):
     def __str__(self):
         return f"{self.student.user.username} - {self.quiz.title}"
 
-class Payment(models.Model):
-    student = models.ForeignKey(Profile, on_delete=models.CASCADE,
-                                limit_choices_to={"role": "student"})
+class Assignment(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    amount = models.FloatField()
-    paid_at = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20, choices=[("pending", "Pending"), ("paid", "Paid")], default="pending")
+    title = models.CharField(max_length=200)
+    deadline = models.DateTimeField()
 
+class AssignmentSubmission(models.Model):
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
+    student = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    file = models.FileField(upload_to="submissions/")
+    score = models.IntegerField(null=True, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+
+class Payment(models.Model):
+    student = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    reference = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=20, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
     def __str__(self):
         return f"{self.student.user.username} - {self.course.title} ({self.status})"
