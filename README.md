@@ -20,7 +20,7 @@ A Django REST Framework API for managing users in a Learning Management System (
 ```bash
 git clone https://github.com/Muwatta/lms_api.git
 
-cd project_testing
+cd LMS_API
 python -m venv venv
 source venv/Scripts/activate
 pip install -r requirements.txt
