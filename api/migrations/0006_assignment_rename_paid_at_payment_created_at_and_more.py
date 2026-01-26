@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api_testing', '0005_payment'),
+        ('api', '0005_payment'),
     ]
 
     operations = [
@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('title', models.CharField(max_length=200)),
                 ('deadline', models.DateTimeField()),
-                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.course')),
+                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.course')),
             ],
         ),
         migrations.RenameField(
@@ -44,7 +44,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='payment',
             name='student',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.profile'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.profile'),
         ),
         migrations.CreateModel(
             name='AssignmentSubmission',
@@ -53,8 +53,8 @@ class Migration(migrations.Migration):
                 ('file', models.FileField(upload_to='submissions/')),
                 ('score', models.IntegerField(blank=True, null=True)),
                 ('submitted_at', models.DateTimeField(auto_now_add=True)),
-                ('assignment', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.assignment')),
-                ('student', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.profile')),
+                ('assignment', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.assignment')),
+                ('student', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.profile')),
             ],
         ),
     ]

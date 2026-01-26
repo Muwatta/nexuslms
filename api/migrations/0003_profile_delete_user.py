@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('api_testing', '0002_user_created_at_alter_user_age_and_more'),
+        ('api', '0002_user_created_at_alter_user_age_and_more'),
     ]
 
     operations = [

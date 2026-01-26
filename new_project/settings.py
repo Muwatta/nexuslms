@@ -28,8 +28,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     "rest_framework.authtoken",
-    'api_testing',
-    'django_filters'
+    'api',
+    'django_filters',
+    'django_extensions'
 ]
 
 from datetime import timedelta

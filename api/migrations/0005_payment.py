@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api_testing', '0004_course_quiz_quizsubmission_enrollment'),
+        ('api', '0004_course_quiz_quizsubmission_enrollment'),
     ]
 
     operations = [
@@ -18,8 +18,8 @@ class Migration(migrations.Migration):
                 ('amount', models.FloatField()),
                 ('paid_at', models.DateTimeField(auto_now_add=True)),
                 ('status', models.CharField(choices=[('pending', 'Pending'), ('paid', 'Paid')], default='pending', max_length=20)),
-                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.course')),
-                ('student', models.ForeignKey(limit_choices_to={'role': 'student'}, on_delete=django.db.models.deletion.CASCADE, to='api_testing.profile')),
+                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.course')),
+                ('student', models.ForeignKey(limit_choices_to={'role': 'student'}, on_delete=django.db.models.deletion.CASCADE, to='api.profile')),
             ],
         ),
     ]

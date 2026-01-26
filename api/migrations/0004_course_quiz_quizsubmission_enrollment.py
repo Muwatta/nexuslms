@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api_testing', '0003_profile_delete_user'),
+        ('api', '0003_profile_delete_user'),
     ]
 
     operations = [
@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
                 ('title', models.CharField(max_length=200)),
                 ('description', models.TextField(blank=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('instructor', models.ForeignKey(limit_choices_to={'role': 'instructor'}, null=True, on_delete=django.db.models.deletion.SET_NULL, to='api_testing.profile')),
+                ('instructor', models.ForeignKey(limit_choices_to={'role': 'instructor'}, null=True, on_delete=django.db.models.deletion.SET_NULL, to='api.profile')),
             ],
         ),
         migrations.CreateModel(
@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                 ('description', models.TextField(blank=True)),
                 ('total_marks', models.PositiveIntegerField(default=100)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.course')),
+                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.course')),
             ],
         ),
         migrations.CreateModel(
@@ -38,8 +38,8 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('score', models.FloatField(default=0)),
                 ('submitted_at', models.DateTimeField(auto_now_add=True)),
-                ('quiz', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.quiz')),
-                ('student', models.ForeignKey(limit_choices_to={'role': 'student'}, on_delete=django.db.models.deletion.CASCADE, to='api_testing.profile')),
+                ('quiz', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.quiz')),
+                ('student', models.ForeignKey(limit_choices_to={'role': 'student'}, on_delete=django.db.models.deletion.CASCADE, to='api.profile')),
             ],
             options={
                 'unique_together': {('quiz', 'student')},
@@ -51,8 +51,8 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('enrolled_at', models.DateTimeField(auto_now_add=True)),
                 ('progress', models.FloatField(default=0.0)),
-                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api_testing.course')),
-                ('student', models.ForeignKey(limit_choices_to={'role': 'student'}, on_delete=django.db.models.deletion.CASCADE, to='api_testing.profile')),
+                ('course', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.course')),
+                ('student', models.ForeignKey(limit_choices_to={'role': 'student'}, on_delete=django.db.models.deletion.CASCADE, to='api.profile')),
             ],
             options={
                 'unique_together': {('student', 'course')},
