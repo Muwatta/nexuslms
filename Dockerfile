@@ -5,4 +5,4 @@ COPY . .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["gunicorn", "new_project.wsgi:application", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "nexuslms.wsgi:application", "--bind", "0.0.0.0:8000"]

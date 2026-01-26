@@ -63,7 +63,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'new_project.urls'
+ROOT_URLCONF = 'nexuslms.urls'
 
 TEMPLATES = [
     {
@@ -81,7 +81,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'new_project.wsgi.application'
+WSGI_APPLICATION = 'nexuslms.wsgi.application'
 
 
 # Database
