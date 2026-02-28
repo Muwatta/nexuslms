@@ -1,5 +1,7 @@
-from .core import ProfileViewSet
-from .course import CourseViewSet, EnrollmentViewSet
+from .core import ProfileViewSet, RegisterView
+from .course import CourseViewSet
+from .course import PracticeQuestionViewSet
+from .enrollment import EnrollmentViewSet
 from .quiz import QuizViewSet, QuizSubmissionViewSet
 from .assignment import AssignmentViewSet, AssignmentSubmissionViewSet
 from .payment import PaymentViewSet

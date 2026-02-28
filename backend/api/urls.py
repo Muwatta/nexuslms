@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import (
     ProfileViewSet,
+    RegisterView,
     CourseViewSet,
     EnrollmentViewSet,
     QuizViewSet,
@@ -15,7 +16,7 @@ from .views import (
     PracticeQuestionViewSet,
     course_analytics,
     student_analytics,
-    AIView,
+    AIView, 
 )
 
 router = DefaultRouter()

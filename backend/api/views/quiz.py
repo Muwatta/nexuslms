@@ -5,7 +5,7 @@ from rest_framework.response import Response
 
 from api.models import Quiz, QuizSubmission
 from api.serializers import QuizSerializer, QuizSubmissionSerializer
-from .filters import QuizFilter
+from api.filters import QuizFilter
 
 
 class QuizViewSet(ModelViewSet):

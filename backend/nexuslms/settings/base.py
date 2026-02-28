@@ -35,12 +35,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    "rest_framework.authtoken",
     "django_filters",
     "django_extensions",
     "corsheaders",
     "api",
-    "api.views.course",
 ]
 
 # Middleware
@@ -75,9 +73,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "nexuslms.wsgi.application"
 
-# Database
-# ------------------
-# default to sqlite but allow overriding via DATABASE_URL (e.g. postgres)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -85,7 +80,6 @@ DATABASES = {
     }
 }
 
-# if a DATABASE_URL is provided (e.g. in Docker/production) use dj-database-url
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     try:
@@ -95,14 +89,12 @@ if DATABASE_URL:
     except ImportError:
         pass
 
-# ------------------
-# REST framework & JWT
-# ------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),  # ← ADD
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
@@ -120,6 +112,22 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# Security headers and settings for production
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+X_FRAME_OPTIONS = "DENY"
+
+# CORS -
+CORS_ALLOW_ALL_ORIGINS = False  
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  
+    "https://yourdomain.com",
 ]
 
 # ------------------

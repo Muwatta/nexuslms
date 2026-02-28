@@ -4,7 +4,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from api.models import Payment, Profile
 from api.serializers import PaymentSerializer
-from .paystack_client import initialize_transaction, verify_transaction
+from api.paystack_client import initialize_transaction, verify_transaction
 
 class PaymentViewSet(ModelViewSet):
     """

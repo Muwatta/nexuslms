@@ -19,7 +19,8 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(Enrollment)
 class EnrollmentAdmin(admin.ModelAdmin):
-    list_display = ("student", "course", "enrolled_at", "created_at")
+    list_display = ("student", "course", "status", "enrolled_at")  # Fixed: removed created_at, added status
+    list_filter = ("status", "enrolled_at")  # Added filters
     search_fields = ("student__user__username", "course__title")
 
 
@@ -31,7 +32,7 @@ class QuizAdmin(admin.ModelAdmin):
 
 @admin.register(QuizSubmission)
 class QuizSubmissionAdmin(admin.ModelAdmin):
-    list_display = ("student", "quiz", "score", "submitted_at", "created_at")
+    list_display = ("student", "quiz", "score", "submitted_at")  # Removed created_at if not in model
     search_fields = ("student__user__username", "quiz__title")
 
 
@@ -43,13 +44,13 @@ class AssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(AssignmentSubmission)
 class AssignmentSubmissionAdmin(admin.ModelAdmin):
-    list_display = ("student", "assignment", "file", "submitted_at", "grade", "created_at")
+    list_display = ("student", "assignment", "file", "submitted_at", "grade")  # Removed created_at if not in model
     search_fields = ("student__user__username", "assignment__title")
 
 
 @admin.register(Achievement)
 class AchievementAdmin(admin.ModelAdmin):
-    list_display = ("student", "title", "achievement_type", "date_earned", "created_at")
+    list_display = ("student", "title", "achievement_type", "date_earned")  # Removed created_at if not in model
     search_fields = ("student__user__username", "title")
     list_filter = ("achievement_type", "date_earned")
 

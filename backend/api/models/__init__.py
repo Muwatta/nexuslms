@@ -7,4 +7,7 @@ from .enrollment import Enrollment
 from .quiz import Quiz
 from .quizsubmission import QuizSubmission
 from .payment import Payment
-from .core import TimeStampedModel
+from .core import TimeStampedModel, PracticeQuestion
+
+# additional models
+from .achievement import Achievement, Project, Milestone

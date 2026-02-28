@@ -1,5 +1,6 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from api.permissions import IsAdminOrInstructor, IsOwnerOrAdmin
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
@@ -14,7 +15,13 @@ from rest_framework.exceptions import PermissionDenied
 class ProfileViewSet(ModelViewSet):
     queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
-    permission_classes = [IsAuthenticated]
+    # Allow admins/instructors to list/manage profiles; owners can view/update their own
+    def get_permissions(self):
+        if self.action in ['list', 'create']:
+            return [IsAuthenticated(), IsAdminOrInstructor()]
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsOwnerOrAdmin()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         qs = super().get_queryset()

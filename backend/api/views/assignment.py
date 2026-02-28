@@ -42,7 +42,12 @@ class AssignmentViewSet(ModelViewSet):
         from django.core.files.base import ContentFile
         from django.http import JsonResponse
 
-        user_role = getattr(request.user, 'role', None)
+        # prefer role on profile, fall back to user.role if present
+        user_role = None
+        try:
+            user_role = request.user.profile.role
+        except Exception:
+            user_role = getattr(request.user, 'role', None)
         if user_role not in ["teacher", "admin", "instructor"]:
             return Response({"detail": "Not allowed"}, status=403)
 
