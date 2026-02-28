@@ -1,44 +1,49 @@
-# NexusLMS API
+# NexusLMS Project
 
-A Django REST Framework (DRF) API for a **Learning Management System (LMS)** with **JWT authentication**, **role-based access**, and full LMS features including **courses, enrollments, assignments, quizzes, submissions, payments, and analytics**.
+This repository contains two main parts:
+
+- `backend/` – Django REST Framework (DRF) API for the Learning Management System (LMS) with **JWT authentication**, **role-based access**, and features such as **courses, enrollments, assignments, quizzes, submissions, payments, and analytics**.
+- `frontend/` – React/Vite/Tailwind frontend that consumes the API and provides user interfaces for students and administrators.
+
+The backend is a REST API built with DRF; the frontend is a single‑page application.
 
 ---
 
 ## Features
 
-* **JWT Authentication** (login, refresh token)
-* **Role-based permissions**: `student`, `instructor`, `admin`
-* **Profile system** linked to Django User
-* **Courses**: CRUD operations for instructors/admins
-* **Enrollments**: Students can enroll in courses
-* **Assignments**: Students submit assignments; instructors can grade them
-* **Quizzes**: Create and manage quizzes per course
-* **Quiz Submissions**: Students submit answers, instructors view scores
-* **Analytics**: Average progress and scores per course and per student
-* **Payments**: Track course payments per student
-* **Pagination and Filters**: Courses, quizzes, enrollments
-* **Admin Interface**: Fully configured with search, list display, and filters
+- **JWT Authentication** (login, refresh token)
+- **Role-based permissions**: `student`, `instructor`, `admin`
+- **Profile system** linked to Django User
+- **Courses**: CRUD operations for instructors/admins
+- **Enrollments**: Students can enroll in courses
+- **Assignments**: Students submit assignments; instructors can grade them
+- **Quizzes**: Create and manage quizzes per course
+- **Quiz Submissions**: Students submit answers, instructors view scores
+- **Analytics**: Average progress and scores per course and per student
+- **Payments**: Track course payments per student
+- **Pagination and Filters**: Courses, quizzes, enrollments
+- **Admin Interface**: Fully configured with search, list display, and filters
 
 ---
 
 ## Tech Stack
 
-* Python 3.9+
-* Django 4.2
-* Django REST Framework
-* Django Filter
-* SimpleJWT (JWT authentication)
-* SQLite (default, can switch to PostgreSQL for production)
-* Docker (for deployment)
+- Python 3.9+
+- Django 4.2
+- Django REST Framework
+- Django Filter
+- SimpleJWT (JWT authentication)
+- SQLite (default, can switch to PostgreSQL for production)
+- Docker (for deployment)
 
 ---
 
-## Setup
+## Setup (backend)
 
 ```bash
 # Clone the repository
 git clone https://github.com/Muwatta/nexuslms.git
-cd nexuslms
+cd nexuslms/backend
 
 # Create virtual environment
 python -m venv venv
@@ -58,15 +63,17 @@ python manage.py migrate
 # Create superuser for admin access
 python manage.py createsuperuser
 
-# Start server
+# Start Django development server
 python manage.py runserver
 ```
+
+The frontend code lives in `frontend/` and can be started separately (see `frontend/README.md`).
 
 ---
 
 ## Authentication
 
-* **Obtain JWT token**:
+- **Obtain JWT token**:
 
 ```http
 POST /api/token/
@@ -78,7 +85,7 @@ Content-Type: application/json
 }
 ```
 
-* **Refresh JWT token**:
+- **Refresh JWT token**:
 
 ```http
 POST /api/token/refresh/
@@ -89,7 +96,7 @@ Content-Type: application/json
 }
 ```
 
-* Include the token in headers for all API requests:
+- Include the token in headers for all API requests:
 
 ```
 Authorization: Bearer <access_token>
@@ -120,22 +127,23 @@ Authorization: Bearer <access_token>
 | Payments               | GET       | `/api/payments/`                     | List payments                                                  |
 | Payments               | POST      | `/api/payments/`                     | Make payment                                                   |
 | Analytics              | GET       | `/api/analytics/course/<course_id>/` | Course analytics: student count, avg progress, avg quiz scores |
+| Registration           | POST      | `/api/register/`                     | Create new user with role                                      |
 
 ---
 
 ## Pagination & Filters
 
-* Pagination is applied to **courses, quizzes, and enrollments** by default.
-* Filter quizzes by course: `/api/quizzes/?course=<id>`
-* Filter enrollments by student or course: `/api/enrollments/?student=<id>&course=<id>`
+- Pagination is applied to **courses, quizzes, and enrollments** by default.
+- Filter quizzes by course: `/api/quizzes/?course=<id>`
+- Filter enrollments by student or course: `/api/enrollments/?student=<id>&course=<id>`
 
 ---
 
 ## Admin Interface
 
-* Manage **Users, Profiles, Courses, Enrollments, Assignments, Quizzes, Submissions, Payments** from Django admin.
-* Search and filter by relevant fields.
-* Fully functional with list display and timestamps for easy tracking.
+- Manage **Users, Profiles, Courses, Enrollments, Assignments, Quizzes, Submissions, Payments** from Django admin.
+- Search and filter by relevant fields.
+- Fully functional with list display and timestamps for easy tracking.
 
 ---
 
@@ -198,32 +206,81 @@ Authorization: Bearer <token>
 5. Deploy with **PostgreSQL** and **Docker** for production readiness.
 6. Implement **email notifications** for enrollments, assignment deadlines, and quiz results.
 
+---
+
+## Frontend (React + Vite + Tailwind)
+
+A simple React/TypeScript frontend can be found in the `frontend/` directory. It uses
+[Vite](https://vitejs.dev/) for bundling and [Tailwind CSS](https://tailwindcss.com/) for
+styling. The UI will consume the backend endpoints using `axios`.
+
+To work with the frontend you'll need Node.js installed; then run:
+
+```bash
+cd frontend
+npm install        # or yarn
+npm run dev        # start development server on http://localhost:3000
+```
+
+---
+
+## Deployment (Docker + PostgreSQL)
+
+A `Dockerfile` and `docker/docker-compose.yml` are provided for containerised deployment.
+The compose file spins up both the Django web service and a PostgreSQL database.
+
+1. Build and start the stack:
+
+```bash
+docker-compose -f docker/docker-compose.yml up --build
+```
+
+2. Inside the `web` container run migrations and create a superuser:
+
+```bash
+docker-compose exec web python manage.py migrate
+# create superuser when prompted
+```
+
+3. The app will be accessible at `http://localhost:8000`. Set the
+   `DATABASE_URL` environment variable if you need to override the default connection string
+   (e.g. `postgres://postgres:postgres@db:5432/lms_db`).
+
+The basic scaffold includes a header and a placeholder page. Add pages/components for:
+
+- Login/registration (JWT token storage)
+- Course listing and details
+- Enrollment flow
+- Assignment/quiz submission forms
+- Payment page
+- Analytics dashboard
+
+Make sure to configure proxy or environment variable for the API base URL (e.g.
+`VITE_API_URL=http://localhost:8000/api`).
 
 flowchart TD
-    User["User (Custom)"] -->|has one| Profile
-    Profile -->|can enroll| Enrollment
-    Enrollment -->|relates to| Course
-    Course -->|has many| Assignment
-    Course -->|has many| Quiz
-    Assignment -->|submissions| AssignmentSubmission
-    Quiz -->|submissions| QuizSubmission
-    Enrollment -->|payments| Payment
+User["User (Custom)"] -->|has one| Profile
+Profile -->|can enroll| Enrollment
+Enrollment -->|relates to| Course
+Course -->|has many| Assignment
+Course -->|has many| Quiz
+Assignment -->|submissions| AssignmentSubmission
+Quiz -->|submissions| QuizSubmission
+Enrollment -->|payments| Payment
 
     subgraph "Roles & Permissions"
         User
     end
 
-
 **Explanation:**
 
-- `User` → your custom Django user with `role` field (`student`, `instructor`, `admin`)  
-- `Profile` → additional info for a user  
-- `Enrollment` → links students to courses  
-- `Course` → contains `Assignments` and `Quizzes`  
-- `AssignmentSubmission` → student submissions for assignments  
-- `QuizSubmission` → student submissions for quizzes  
-- `Payment` → tracks course payments  
+- `User` → your custom Django user with `role` field (`student`, `instructor`, `admin`)
+- `Profile` → additional info for a user
+- `Enrollment` → links students to courses
+- `Course` → contains `Assignments` and `Quizzes`
+- `AssignmentSubmission` → student submissions for assignments
+- `QuizSubmission` → student submissions for quizzes
+- `Payment` → tracks course payments
 - Mermaid makes it visually clear without needing an image
 
 ---
-
