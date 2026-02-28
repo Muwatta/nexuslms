@@ -16,6 +16,13 @@ class AssignmentSubmission(models.Model):
     submitted_at = models.DateTimeField(default=timezone.now, editable=False)
     created_at = models.DateTimeField(default=timezone.now, editable=False)  # <-- fixed
     grade = models.FloatField(null=True, blank=True)
+    published = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        # simple auto-grade: if grade unset, set 0.0 (replace with AI logic)
+        if self.grade is None:
+            self.grade = 0.0
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.student.user.username} - {self.assignment.title}"

@@ -12,3 +12,4 @@ class QuizSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = QuizSubmission
         fields = "__all__"
+        read_only_fields = ("published",)

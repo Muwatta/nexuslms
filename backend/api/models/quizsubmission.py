@@ -11,7 +11,15 @@ class QuizSubmission(models.Model):
         limit_choices_to={'user__role': 'student'}
     )
     score = models.FloatField()
+    published = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(default=timezone.now, editable=False)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
     def __str__(self):
         return f"{self.student.user.username} - {self.quiz.title}"
+
+    def save(self, *args, **kwargs):
+        # auto-grade placeholder: if score not set, compute dummy score
+        if self.score is None:
+            # here you could call external AI service; using fixed 0 for now
+            self.score = 0.0
+        super().save(*args, **kwargs)

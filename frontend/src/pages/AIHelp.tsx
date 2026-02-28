@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import api from "../api";
+import { motion } from "framer-motion";
 
 const AIHelp: React.FC = () => {
   const [prompt, setPrompt] = useState("");
@@ -23,7 +24,7 @@ const AIHelp: React.FC = () => {
   };
 
   return (
-    <div className="p-6">
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="p-6">
       <h1 className="text-3xl font-bold mb-4">AI Assistant</h1>
       <p className="mb-4 text-gray-600 dark:text-gray-300">
         Ask a question or describe what you need help with and our AI will
@@ -49,7 +50,7 @@ const AIHelp: React.FC = () => {
           {response}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

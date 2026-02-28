@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../api";
 import StatsCard from "../components/StatsCard";
+import PaymentSection from "../components/PaymentSection";
 
 const ProgrammingDashboard: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -45,10 +46,22 @@ const ProgrammingDashboard: React.FC = () => {
         </div>
         <p className="text-gray-400 text-lg">&gt; Build. Code. Innovate.</p>
         {profile && (
-          <p className="text-gray-500 mt-2">
-            user@nexuslms ~ $ {profile.user?.username} | level:{" "}
-            {profile.student_class}
-          </p>
+          <>
+            <p className="text-gray-500 mt-2">
+              user@nexuslms ~ $ {profile.user?.username} | level:{" "}
+              {profile.student_class}
+            </p>
+            <p className="text-sm text-gray-400 mt-1">
+              Navigate using the menu to explore courses, projects, and badges.
+              Dark mode toggle is available at the top.
+            </p>
+          </>
+        )}
+        {profile && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-semibold text-cyan-400">Payments</h2>
+            <PaymentSection profile={profile} />
+          </div>
         )}
       </div>
 

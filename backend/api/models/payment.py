@@ -25,6 +25,7 @@ class Payment(models.Model):
     reference = models.CharField(max_length=100, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     paystack_response = models.JSONField(null=True, blank=True)
+    receipt = models.FileField(upload_to='payment_receipts/', null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:

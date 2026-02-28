@@ -12,3 +12,4 @@ class AssignmentSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssignmentSubmission
         fields = "__all__"
+        read_only_fields = ("published",)

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../api";
 import StatsCard from "../components/StatsCard";
+import PaymentSection from "../components/PaymentSection";
 
 const ArabicDashboard: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -40,9 +41,23 @@ const ArabicDashboard: React.FC = () => {
           Arabic School Excellence
         </p>
         {profile && (
-          <p className="text-gray-600 dark:text-gray-300 mt-2">
-            الطالب: {profile.user?.username} | الفصل: {profile.student_class}
-          </p>
+          <>
+            <p className="text-gray-600 dark:text-gray-300 mt-2">
+              الطالب: {profile.user?.username} | الفصل: {profile.student_class}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              استخدم شريط التنقل لعرض الدروس، الواجبات، والمزيد. قم بالتبديل بين
+              الوضع الداكن والنهاري باستخدام الأيقونة في الأعلى.
+            </p>
+          </>
+        )}
+        {profile && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-semibold text-green-900 dark:text-green-300">
+              Payments
+            </h2>
+            <PaymentSection profile={profile} />
+          </div>
         )}
       </div>
 

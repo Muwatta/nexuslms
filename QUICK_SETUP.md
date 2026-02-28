@@ -64,6 +64,8 @@ After logging in, click navbar links to explore:
 - **📋 Projects** - Course projects (NEW)
 - **🏁 Milestones** - Progress tracking (NEW)
 - 📊 **Analytics** - Student statistics
+- 🤖 **AI Help** - Ask questions using the built‑in assistant (NEW)
+- 🎨 **Enhanced UI** - vibrant new colors and full dark/light theme across every page (use the sun/moon toggle in the navbar)
 
 ---
 

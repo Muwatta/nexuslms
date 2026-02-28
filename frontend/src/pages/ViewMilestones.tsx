@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../api";
+import StatsCard from "../components/StatsCard";
+import { motion } from "framer-motion";
 
 interface Milestone {
   id: number;
@@ -45,25 +47,34 @@ const Milestones: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 p-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900 dark:to-teal-900 p-6"
+    >
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-emerald-900">🏁 Milestones</h1>
-          <p className="text-emerald-700 mt-2">
+          <h1 className="text-4xl font-bold text-emerald-900 dark:text-emerald-300">
+            🏁 Milestones
+          </h1>
+          <p className="text-emerald-700 dark:text-emerald-300 mt-2">
             Track your progress toward course completion and learning goals
           </p>
         </div>
 
         {/* Stats */}
         <div className="grid md:grid-cols-4 gap-4 mb-8">
+          {/* dark support for stats cards */}
           {[
             {
+              icon: "🎯",
               label: "Total Milestones",
               value: milestones.length,
-              icon: "🎯",
               color: "emerald",
             },
             {
+              icon: "📈",
               label: "Average Progress",
               value:
                 milestones.length > 0
@@ -74,44 +85,47 @@ const Milestones: React.FC = () => {
                       ) / milestones.length,
                     ) + "%"
                   : "0%",
-              icon: "📈",
               color: "teal",
             },
             {
+              icon: "✅",
               label: "Completed",
               value: milestones.filter((m) => m.progress_percentage === 100)
                 .length,
-              icon: "✅",
               color: "green",
             },
             {
+              icon: "⚡",
               label: "In Progress",
               value: milestones.filter(
                 (m) => m.progress_percentage > 0 && m.progress_percentage < 100,
               ).length,
-              icon: "⚡",
               color: "yellow",
             },
           ].map((stat, i) => (
-            <div
+            <StatsCard
               key={i}
-              className={`bg-${stat.color}-100 border-lg border-${stat.color}-300 p-4 rounded-lg`}
-            >
-              <p className="text-2xl mb-2">{stat.icon}</p>
-              <p className="text-xs text-gray-600 font-medium">{stat.label}</p>
-              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-            </div>
+              icon={stat.icon}
+              label={stat.label}
+              value={stat.value}
+              color={stat.color}
+            />
           ))}
         </div>
 
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-emerald-600">Loading milestones...</p>
+            <p className="text-emerald-600 dark:text-emerald-300">
+              Loading milestones...
+            </p>
           </div>
         ) : milestones.length > 0 ? (
           <div className="space-y-8">
             {Object.entries(groupedMilestones).map(([category, items]) => (
-              <div key={category} className="bg-white rounded-lg shadow p-6">
+              <div
+                key={category}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow p-6"
+              >
                 <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                   <span className="text-3xl">{getMilestoneIcon(category)}</span>
                   {category.charAt(0).toUpperCase() + category.slice(1)}{" "}
@@ -161,14 +175,14 @@ const Milestones: React.FC = () => {
 
                       {/* Milestone Details */}
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">
+                        <span className="text-gray-600 dark:text-gray-300">
                           {milestone.progress_percentage === 100
                             ? "✨ Completed!"
                             : milestone.progress_percentage > 0
                               ? "🔄 In Progress"
                               : "🔴 Not Started"}
                         </span>
-                        <button className="text-emerald-600 hover:text-emerald-800 font-medium">
+                        <button className="text-emerald-600 dark:text-emerald-300 hover:text-emerald-800 dark:hover:text-emerald-500 font-medium">
                           View Details →
                         </button>
                       </div>
@@ -179,14 +193,14 @@ const Milestones: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
             <p className="text-2xl text-gray-500">
               No milestones yet. Start your courses to unlock milestones! 🚀
             </p>
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 

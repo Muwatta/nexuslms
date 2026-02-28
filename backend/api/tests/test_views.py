@@ -90,3 +90,65 @@ class ViewTests(APITestCase):
         resp = self.client.post(url, data)
         self.assertEqual(resp.status_code, 201)
         self.assertTrue(User.objects.filter(username='newuser').exists())
+
+    def test_ai_endpoint(self):
+        url = reverse('ai')
+        # make sure login is still valid
+        resp = self.client.post(url, {'prompt': 'Hello AI'})
+        self.assertEqual(resp.status_code, 200)
+        # response should echo the prompt in test environment
+        self.assertIn('AI echo', resp.data['response'])
+
+    def test_quiz_submission_publish_and_pdf(self):
+        # set up course, quiz, student
+        course = Course.objects.create(title='TestCourse')
+        student_user = User.objects.create_user(username='stu3', password='p')
+        student_profile = Profile.objects.get(user=student_user)
+        from api.models import Quiz
+        quiz_obj = Quiz.objects.create(title='Q2', course=course)
+        # login as student to submit
+        self.client.logout()
+        self.client.login(username='stu3', password='p')
+        submission_url = reverse('quizsubmission-list')
+        resp = self.client.post(submission_url, {'quiz': quiz_obj.id, 'student': student_profile.id, 'score': 70})
+        self.assertEqual(resp.status_code, 201)
+        sub_id = resp.data['id']
+        # student should not see pdf or publish
+        pdf_url = reverse('quizsubmission-pdf', args=[sub_id])
+        resp = self.client.get(pdf_url)
+        self.assertEqual(resp.status_code, 403)
+        publish_url = reverse('quizsubmission-publish', args=[sub_id])
+        resp = self.client.post(publish_url)
+        self.assertEqual(resp.status_code, 403)
+        # switch back to admin and publish
+        self.client.logout()
+        self.client.login(username='admin', password='admin')
+        resp = self.client.post(publish_url)
+        self.assertEqual(resp.status_code, 200)
+        # now pdf should work
+        resp = self.client.get(pdf_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+
+    def test_assignment_submission_publish_and_pdf(self):
+        course = Course.objects.create(title='AssignCourse')
+        student_user = User.objects.create_user(username='stu4', password='p')
+        student_profile = Profile.objects.get(user=student_user)
+        from api.models import Assignment
+        assign = Assignment.objects.create(course=course, title='A1', deadline='2030-01-01T00:00Z')
+        self.client.logout()
+        self.client.login(username='stu4', password='p')
+        sub_url = reverse('assignmentsubmission-list')
+        resp = self.client.post(sub_url, {'assignment': assign.id, 'student': student_profile.id, 'file': ''})
+        self.assertEqual(resp.status_code, 201)
+        sub_id = resp.data['id']
+        pub_url = reverse('assignmentsubmission-publish', args=[sub_id])
+        pdf_url = reverse('assignmentsubmission-pdf', args=[sub_id])
+        # student can't publish/pdf
+        self.assertEqual(self.client.post(pub_url).status_code, 403)
+        self.assertEqual(self.client.get(pdf_url).status_code, 403)
+        self.client.logout()
+        self.client.login(username='admin', password='admin')
+        self.assertEqual(self.client.post(pub_url).status_code, 200)
+        self.assertEqual(self.client.get(pdf_url).status_code, 200)
+        self.assertEqual(self.client.get(pdf_url)['Content-Type'], 'application/pdf')

@@ -14,6 +14,8 @@ The backend is a REST API built with DRF; the frontend is a single‑page applic
 - **JWT Authentication** (login, refresh token)
 - **Role-based permissions**: `student`, `instructor`, `admin`
 - **Profile system** linked to Django User
+- **AI Assistant endpoint**: `/api/ai/` allows authenticated users to send prompts and receive generated or echoed responses (integrates with OpenAI when configured)
+- **Theming & UI**: full light/dark toggle available; global color palette refreshed with `primary`, `secondary`, and `cool` hues for a modern look. All pages and dashboards respond dynamically to theme changes.
 - **Courses**: CRUD operations for instructors/admins
 - **Enrollments**: Students can enroll in courses
 - **Assignments**: Students submit assignments; instructors can grade them
@@ -204,7 +206,8 @@ Authorization: Bearer <token>
 3. Enhance **analytics**: trends per student, per assignment, course completion rates.
 4. Add **unit tests** for all models, serializers, views, and permissions.
 5. Deploy with **PostgreSQL** and **Docker** for production readiness.
-6. Implement **email notifications** for enrollments, assignment deadlines, and quiz results.
+6. Add **AI-powered assistance** to frontend using OpenAI or local models.
+7. Implement **email notifications** for enrollments, assignment deadlines, and quiz results.
 
 ---
 

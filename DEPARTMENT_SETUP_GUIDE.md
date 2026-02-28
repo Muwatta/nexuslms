@@ -148,7 +148,7 @@ Three distinct dashboard layouts based on student's department:
 #### 3. **Navigation Bar** (`frontend/src/components/Navbar.tsx`)
 
 - Elementary icon-based navigation
-- Added links: Dashboard, Courses, My Classes, Assignments, **Achievements**, **Projects**, **Milestones**, Analytics
+- Added links: Dashboard, Courses, My Classes, Assignments, **Achievements**, **Projects**, **Milestones**, Analytics, **AI Help**
 - Improved styling with gradients and hover effects
 - Responsive design
 

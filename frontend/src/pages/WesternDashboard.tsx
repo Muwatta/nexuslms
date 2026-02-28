@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import api from "../api";
 import StatsCard from "../components/StatsCard";
+import { WHATSAPP_NUMBER, formatWhatsAppLink } from "../config/contact";
+import { motion } from "framer-motion";
+import PaymentSection from "../components/PaymentSection";
 
 const WesternDashboard: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -29,20 +32,71 @@ const WesternDashboard: React.FC = () => {
   }, []);
 
   return (
-    <div className="p-6">
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45 }}
+      className="p-6"
+    >
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
           Welcome to Western School
         </h1>
         {profile && (
-          <p className="text-gray-600 dark:text-gray-300 mt-2">
-            Student: {profile.user?.username} | Class: {profile.student_class}
-          </p>
+          <>
+            <p className="text-gray-600 dark:text-gray-300 mt-2">
+              {profile.role === "student" ? (
+                <>
+                  Student: {profile.user?.username} | Class:{" "}
+                  {profile.student_class}
+                </>
+              ) : profile.role === "parent" ? (
+                <>Parent: {profile.user?.username}</>
+              ) : (
+                <>
+                  {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
+                  : {profile.user?.username}
+                </>
+              )}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Use the navigation bar to view courses, assignments, and more.
+              Switch theme with the sun/moon icon above.
+            </p>
+            {profile.role === "parent" && (
+              <p className="text-sm mt-2">
+                💬{" "}
+                <a
+                  href={formatWhatsAppLink(WHATSAPP_NUMBER)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-green-500 underline"
+                >
+                  Chat with administration on WhatsApp
+                </a>
+              </p>
+            )}
+          </>
         )}
       </div>
 
+      {/* Payment section */}
+      {profile && (
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            Payments
+          </h2>
+          <PaymentSection profile={profile} />
+        </div>
+      )}
+
       {/* Stats Cards */}
-      <div className="grid md:grid-cols-4 gap-4 mb-8">
+      <motion.div
+        className="grid md:grid-cols-4 gap-4 mb-8"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ staggerChildren: 0.1 }}
+      >
         <StatsCard
           icon="📚"
           label="Enrolled Courses"
@@ -57,7 +111,7 @@ const WesternDashboard: React.FC = () => {
         />
         <StatsCard icon="📝" label="Assignments Due" value="3" color="cool" />
         <StatsCard icon="📊" label="Quiz Average" value="85%" color="cool" />
-      </div>
+      </motion.div>
 
       {/* Main Content */}
       <div className="grid md:grid-cols-3 gap-6">
@@ -132,7 +186,7 @@ const WesternDashboard: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -44,13 +44,13 @@ const Achievements: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-amber-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900 dark:to-amber-900 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-yellow-900">
+          <h1 className="text-4xl font-bold text-yellow-900 dark:text-yellow-300">
             🏆 My Achievements
           </h1>
-          <p className="text-yellow-700 mt-2">
+          <p className="text-yellow-700 dark:text-yellow-300 mt-2">
             Celebrate your learning journey with earned certificates and badges
           </p>
         </div>
@@ -62,7 +62,7 @@ const Achievements: React.FC = () => {
             className={`px-4 py-2 rounded-full font-medium transition ${
               filter === "all"
                 ? "bg-yellow-500 text-white"
-                : "bg-white text-yellow-700 border border-yellow-200 hover:border-yellow-500"
+                : "bg-white dark:bg-gray-700 dark:text-yellow-200 text-yellow-700 border border-yellow-200 dark:border-yellow-700 hover:border-yellow-500"
             }`}
           >
             All ({achievements.length})
@@ -74,7 +74,7 @@ const Achievements: React.FC = () => {
               className={`px-4 py-2 rounded-full font-medium transition ${
                 filter === type
                   ? "bg-yellow-500 text-white"
-                  : "bg-white text-yellow-700 border border-yellow-200 hover:border-yellow-500"
+                  : "bg-white dark:bg-gray-700 dark:text-yellow-200 text-yellow-700 border border-yellow-200 dark:border-yellow-700 hover:border-yellow-500"
               }`}
             >
               {type} (
@@ -92,18 +92,18 @@ const Achievements: React.FC = () => {
             {filteredAchievements.map((achievement) => (
               <div
                 key={achievement.id}
-                className="bg-white rounded-lg shadow-md hover:shadow-xl transition p-6 border-t-4 border-yellow-500"
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl transition p-6 border-t-4 border-yellow-500"
               >
                 <div className="text-5xl mb-4 text-center">
                   {getIcon(achievement.achievement_type)}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 text-center mb-2">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-2">
                   {achievement.title}
                 </h2>
-                <p className="text-sm text-gray-600 text-center mb-3">
+                <p className="text-sm text-gray-600 dark:text-gray-300 text-center mb-3">
                   {achievement.achievement_type}
                 </p>
-                <div className="flex items-center justify-center text-sm text-gray-500">
+                <div className="flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
                   <span className="mr-2">📅</span>
                   {new Date(achievement.date_earned).toLocaleDateString()}
                 </div>
@@ -111,7 +111,7 @@ const Achievements: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
             <p className="text-2xl text-gray-500">
               No achievements yet. Keep learning! 📚
             </p>

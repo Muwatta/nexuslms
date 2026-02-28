@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import api from "../api";
 
 const Signup: React.FC = () => {
@@ -82,8 +83,13 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4"
+    >
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-2xl">
         <h2 className="text-3xl font-bold mb-2 text-gray-900">
           Join Muwata Academy
         </h2>
@@ -296,7 +302,7 @@ const Signup: React.FC = () => {
           </p>
         </form>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

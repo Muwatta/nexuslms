@@ -12,6 +12,7 @@ from .views import (
     AchievementViewSet,
     ProjectViewSet,
     MilestoneViewSet,
+    PracticeQuestionViewSet,
     course_analytics,
     student_analytics,
     AIView,
@@ -32,6 +33,7 @@ router.register("payments", PaymentViewSet, basename="payments")
 router.register("achievements", AchievementViewSet, basename="achievements")
 router.register("projects", ProjectViewSet, basename="projects")
 router.register("milestones", MilestoneViewSet, basename="milestones")
+router.register("practice-questions", PracticeQuestionViewSet, basename="practice-questions")
 
 urlpatterns = router.urls
 

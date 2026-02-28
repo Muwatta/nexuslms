@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import api from "../api";
+import { motion } from "framer-motion";
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -19,8 +20,8 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20">
-      <h2 className="text-2xl font-bold mb-4">Login</h2>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="max-w-md mx-auto mt-20 bg-white dark:bg-gray-800 p-8 rounded-lg shadow">
+      <h2 className="text-2xl font-bold mb-4 dark:text-white">Login</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block">Username</label>
@@ -52,13 +53,13 @@ const Login: React.FC = () => {
           Sign in
         </button>
       </form>
-      <p className="mt-4">
+      <p className="mt-4 dark:text-gray-300">
         Don't have an account?{" "}
         <a href="/signup" className="text-blue-500">
           Sign up
         </a>
       </p>
-    </div>
+    </motion.div>
   );
 };
 
