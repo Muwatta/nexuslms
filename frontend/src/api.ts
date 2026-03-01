@@ -6,7 +6,7 @@ const api = axios.create({
   baseURL,
 });
 
-// automatically attach bearer token if present
+// Request interceptor: attach bearer token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
   if (token && config.headers) {
@@ -15,9 +15,26 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// refresh token on 401 responses
+// Response interceptor: extract results from paginated responses
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Django REST returns {count, results, next, previous}
+    // Auto-extract the array so components can `.filter`/`.map` without crashing
+    if (response.data && Array.isArray(response.data.results)) {
+      return {
+        ...response,
+        data: response.data.results,
+      };
+    }
+    // if the server returns null or undefined for list endpoints, normalize to []
+    if (response.data == null) {
+      return {
+        ...response,
+        data: [],
+      };
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     if (

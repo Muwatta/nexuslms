@@ -18,7 +18,7 @@ const Projects: React.FC = () => {
   useEffect(() => {
     api
       .get("/projects/")
-      .then((res) => setProjects(res.data))
+      .then((res) => setProjects(res.data.results || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

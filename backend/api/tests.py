@@ -47,7 +47,7 @@ class AssignmentUploadTests(TestCase):
         resp = self.client.post(
             reverse('assignment-upload-results', args=[self.assignment.id]),
             {'file': io.BytesIO(csvfile.read().encode())},
-            format='multipart'
+            format='json'
         )
         self.assertEqual(resp.status_code, 200)
         data = resp.json()

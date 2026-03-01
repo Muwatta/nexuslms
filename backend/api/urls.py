@@ -6,6 +6,7 @@ from .views import (
     CourseViewSet,
     EnrollmentViewSet,
     QuizViewSet,
+    QuestionViewSet,
     QuizSubmissionViewSet,
     PaymentViewSet,
     AssignmentViewSet,
@@ -24,6 +25,7 @@ router.register("profiles", ProfileViewSet, basename="profiles")
 router.register("courses", CourseViewSet, basename="courses")
 router.register("enrollments", EnrollmentViewSet, basename="enrollments")
 router.register("quizzes", QuizViewSet, basename="quizzes")
+router.register("questions", QuestionViewSet, basename="questions")
 
 # FIXED: distinct resources
 router.register("quiz-submissions", QuizSubmissionViewSet, basename="quiz-submissions")

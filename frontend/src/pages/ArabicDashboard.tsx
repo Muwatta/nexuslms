@@ -20,11 +20,11 @@ const ArabicDashboard: React.FC = () => {
         .catch(() => {}),
       api
         .get("/achievements/")
-        .then((res) => setAchievements(res.data))
+        .then((res) => setAchievements(res.data.results || []))
         .catch(() => {}),
       api
         .get("/courses/")
-        .then((res) => setCourses(res.data))
+        .then((res) => setCourses(res.data.results || []))
         .catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);

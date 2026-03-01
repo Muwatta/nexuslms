@@ -1,6 +1,7 @@
 from django.db import models
 from api.models import Assignment, Profile
 from django.utils import timezone
+from django.core.validators import FileExtensionValidator
 
 class AssignmentSubmission(models.Model):
     assignment = models.ForeignKey(
@@ -12,7 +13,7 @@ class AssignmentSubmission(models.Model):
         on_delete=models.CASCADE,
         limit_choices_to={'user__role': 'student'}
     )
-    file = models.FileField(upload_to="assignment_submissions/")
+    file = models.FileField(upload_to="assignment_submissions/", validators=[FileExtensionValidator(["pdf"])])
     submitted_at = models.DateTimeField(default=timezone.now, editable=False)
     created_at = models.DateTimeField(default=timezone.now, editable=False)  # <-- fixed
     grade = models.FloatField(null=True, blank=True)

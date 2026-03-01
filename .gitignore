@@ -12,7 +12,9 @@ staticfiles/
 
 # Virtual environment
 venv/
-.env
+/env/
+.venv/
+.env/
 # IDEs
 .vscode/
 *.idea/

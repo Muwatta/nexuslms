@@ -18,7 +18,7 @@ const Achievements: React.FC = () => {
   useEffect(() => {
     api
       .get("/achievements/")
-      .then((res) => setAchievements(res.data))
+      .then((res) => setAchievements(res.data.results || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

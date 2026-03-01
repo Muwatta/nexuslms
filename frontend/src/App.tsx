@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
@@ -7,6 +8,7 @@ import Courses from "./pages/Courses";
 import Enrollments from "./pages/Enrollments";
 import Assignments from "./pages/Assignments";
 import Payments from "./pages/Payments";
+import Quizzes from "./pages/Quizzes";
 import Analytics from "./pages/Analytics";
 import ViewAchievements from "./pages/ViewAchievements";
 import ViewProjects from "./pages/ViewProjects";
@@ -22,13 +24,20 @@ import ManageUsers from "./pages/ManageUsers";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/Navbar";
 import AIChat from "./components/AIChat";
+import Notifications from "./components/Notifications";
 
 function App() {
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const token = localStorage.getItem("access_token");
+
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-        <Navbar />
-        <main>
+        <Navbar toggleSidebar={() => setSidebarOpen((v) => !v)} />
+        {token && (
+          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        )}
+        <main className={`pt-16 ${token ? "md:ml-64" : ""}`}>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Landing />} />
@@ -73,6 +82,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Payments />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quizzes"
+              element={
+                <ProtectedRoute>
+                  <Quizzes />
                 </ProtectedRoute>
               }
             />
@@ -125,6 +142,7 @@ function App() {
           </Routes>
         </main>
         <AIChat />
+        <Notifications />
       </div>
     </BrowserRouter>
   );

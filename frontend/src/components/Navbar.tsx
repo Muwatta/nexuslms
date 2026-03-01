@@ -2,7 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { WHATSAPP_NUMBER, formatWhatsAppLink } from "../config/contact";
 
-const Navbar: React.FC = () => {
+interface NavbarProps {
+  toggleSidebar?: () => void;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
   const [darkMode, setDarkMode] = useState<boolean>(
     localStorage.getItem("dark_mode") === "true",
   );
@@ -41,104 +45,13 @@ const Navbar: React.FC = () => {
           <div className="flex items-center space-x-1">
             {token ? (
               <>
-                <Link
-                  to="/dashboard"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
+                {/* hamburger for sidebar */}
+                <button
+                  onClick={() => toggleSidebar && toggleSidebar()}
+                  className="text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-teal-700 dark:hover:bg-teal-800 transition"
                 >
-                  🏠 Dashboard
-                </Link>
-                <Link
-                  to="/courses"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  📚 Courses
-                </Link>
-                <Link
-                  to="/enrollments"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  ✏️ My Classes
-                </Link>
-                <Link
-                  to="/assignments"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  📝 Assignments
-                </Link>
-                <Link
-                  to="/manage-users"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  👥 Manage Users
-                </Link>
-                <Link
-                  to="/achievements"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  🏆 Achievements
-                </Link>
-                <Link
-                  to="/projects"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  📋 Projects
-                </Link>
-                <Link
-                  to="/milestones"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  🏁 Milestones
-                </Link>
-                <Link
-                  to="/analytics"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  📊 Analytics
-                </Link>
-                <Link
-                  to="/ai"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  🤖 AI Help
-                </Link>
-                <Link
-                  to="/practice"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  🧠 Practice
-                </Link>
-                <Link
-                  to="/about"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  ℹ️ About
-                </Link>
-                <Link
-                  to="/programs"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  📚 Programs
-                </Link>
-                <Link
-                  to="/locations"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  📍 Locations
-                </Link>
-                <Link
-                  to="/contact"
-                  className="text-white hover:bg-teal-700 dark:hover:bg-teal-800 px-3 py-2 rounded-md text-sm font-medium transition"
-                >
-                  ✉️ Contact
-                </Link>
-                <a
-                  href={formatWhatsAppLink(WHATSAPP_NUMBER)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-white bg-green-500 hover:bg-green-600 px-3 py-2 rounded-md text-sm font-medium transition ml-2"
-                >
-                  💬 WhatsApp
-                </a>
+                  ☰
+                </button>
                 <button
                   onClick={handleLogout}
                   className="text-white hover:bg-red-600 dark:hover:bg-red-700 px-3 py-2 rounded-md text-sm font-medium transition ml-2"
