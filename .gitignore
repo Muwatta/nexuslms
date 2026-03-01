@@ -23,3 +23,5 @@ venv/
 frontend/node_modules/
 build/
 
+*.sqlite3
+.env
