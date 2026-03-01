@@ -35,21 +35,17 @@ class QuizSubmissionViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        """Auto-grade submission based on answers"""
         user_profile = self.request.user.profile
         
-        # Only students can submit
         if user_profile.role != 'student':
             raise ValidationError("Only students can submit quizzes")
         
         quiz = serializer.validated_data.get('quiz')
         answers = serializer.validated_data.get('answers', [])
         
-        # Check if already submitted
         if QuizSubmission.objects.filter(student=user_profile, quiz=quiz).exists():
             raise ValidationError("Already submitted this quiz")
         
-        # Calculate score
         score = self.calculate_score(quiz, answers)
         
         serializer.save(
@@ -59,20 +55,19 @@ class QuizSubmissionViewSet(ModelViewSet):
         )
     
     def calculate_score(self, quiz, answers):
-        """Calculate score from answers"""
         score = 0
         questions = {q.id: q for q in Question.objects.filter(quiz=quiz)}
         
         for answer in answers:
             qid = answer.get('question_id')
-            selected = answer.get('selected_option', '').upper()
+            selected_index = answer.get('selected_index', -1) 
             
             if qid in questions:
                 question = questions[qid]
-                if selected == question.correct_option:
+                if selected_index == question.correct_index:
                     score += question.marks
         
-        return score
+        return score  
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -84,10 +79,20 @@ class QuizSubmissionViewSet(ModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def publish(self, request, pk=None):
-        submission = self.get_object()
+        from rest_framework.response import Response
+        
+        # Direct lookup like pdf action
+        try:
+            submission = QuizSubmission.objects.get(pk=pk)
+        except QuizSubmission.DoesNotExist:
+            return Response({"detail": "Not found"}, status=404)
+        
         role = getattr(request.user, 'profile', None) and request.user.profile.role
+        
+        # Permission check
         if role not in ["instructor", "admin"]:
             return Response({"detail": "Not allowed"}, status=403)
+        
         submission.published = True
         submission.save()
         return Response({"status": "published"})
@@ -96,9 +101,15 @@ class QuizSubmissionViewSet(ModelViewSet):
     def pdf(self, request, pk=None):
         from django.http import HttpResponse
         from reportlab.pdfgen import canvas
+        from rest_framework.response import Response
+    
+        try:
+            sub = QuizSubmission.objects.get(pk=pk)
+        except QuizSubmission.DoesNotExist:
+            return Response({"detail": "Not found"}, status=404)
         
-        sub = self.get_object()
         role = getattr(request.user, 'profile', None) and request.user.profile.role
+        
         if not sub.published and role not in ["instructor", "admin"]:
             return Response({"detail": "Not available"}, status=403)
         

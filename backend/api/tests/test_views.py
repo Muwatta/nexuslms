@@ -219,7 +219,7 @@ class ViewTests(APITestCase):
                 "answers": [
                     {
                         "question_id": question.id,
-                        "selected_option": "A",
+                        "selected_index": 0,
                     }
                 ],
             },

@@ -26,23 +26,16 @@ class QuizSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
-
 class QuizSubmissionSerializer(serializers.ModelSerializer):
+    student = serializers.PrimaryKeyRelatedField(
+        read_only=True, default=serializers.CurrentUserDefault()
+    )
+
     class Meta:
         model = QuizSubmission
-        fields = [
-            "id",
-            "quiz",
-            "student",
-            "answers",
-            "score",
-            "published",
-            "submitted_at",
-            "created_at",
-        ]
+        fields = ["id", "quiz", "student", "answers", "score", "published", "submitted_at", "created_at"]
         read_only_fields = ["id", "score", "published", "submitted_at", "created_at"]
 
     def create(self, validated_data):
-        # grading happens in model save()
+        validated_data["student"] = self.context["request"].user.profile
         return super().create(validated_data)
-

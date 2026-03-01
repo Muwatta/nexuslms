@@ -26,3 +26,4 @@ sqlparse==0.5.5
 tzdata==2025.3
 uritemplate==4.2.0
 urllib3==2.6.3
+reportlab>=3.6.0
