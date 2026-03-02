@@ -12,6 +12,7 @@ interface Profile {
 
 const ManageUsers: React.FC = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [selected, setSelected] = useState<number[]>([]);
   const [me, setMe] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -29,6 +30,26 @@ const ManageUsers: React.FC = () => {
       if (res.data.length) setMe(res.data[0]);
     });
   }, []);
+
+  const toggleSelect = (id: number) => {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleSyncGroups = async () => {
+    if (selected.length === 0) return;
+    try {
+      const userIds = profiles
+        .filter((p) => selected.includes(p.id))
+        .map((p) => p.user.id);
+      const resp = await api.post("/admin/sync-groups/", { user_ids: userIds });
+      setMessage(`Synced ${resp.data.processed.length} users`);
+      setSelected([]);
+    } catch (err: any) {
+      setMessage("Sync failed: " + (err.response?.data || err.message));
+    }
+  };
 
   const handleInput = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -148,6 +169,7 @@ const ManageUsers: React.FC = () => {
         <table className="w-full table-auto">
           <thead>
             <tr>
+              <th className="p-2"> </th>
               <th className="p-2">Username</th>
               <th className="p-2">Role</th>
               <th className="p-2">Dept</th>
@@ -157,6 +179,13 @@ const ManageUsers: React.FC = () => {
           <tbody>
             {profiles.map((p) => (
               <tr key={p.id} className="border-t">
+                <td className="p-2">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(p.id)}
+                    onChange={() => toggleSelect(p.id)}
+                  />
+                </td>
                 <td className="p-2">{p.user.username}</td>
                 <td className="p-2 capitalize">{p.role}</td>
                 <td className="p-2">{p.department}</td>
@@ -165,6 +194,15 @@ const ManageUsers: React.FC = () => {
             ))}
           </tbody>
         </table>
+        <div className="mt-4">
+          <button
+            onClick={handleSyncGroups}
+            disabled={selected.length === 0}
+            className="px-4 py-2 bg-indigo-600 text-white rounded disabled:opacity-50"
+          >
+            Sync groups for selected
+          </button>
+        </div>
       </div>
     </motion.div>
   );

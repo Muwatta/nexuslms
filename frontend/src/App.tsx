@@ -29,9 +29,6 @@ import AIChat from "./components/AIChat";
 import Notifications from "./components/Notifications";
 import { getDashboardRouteByRole, getUserData } from "./utils/authUtils";
 
-/**
- * Component that handles redirecting logged-in users from home page to their dashboard
- */
 const HomeRouter: React.FC = () => {
   const token = localStorage.getItem("access_token");
 
@@ -41,11 +38,9 @@ const HomeRouter: React.FC = () => {
       const dashboardRoute = getDashboardRouteByRole(userData.role);
       return <Navigate to={dashboardRoute} replace />;
     }
-    // If token exists but user data couldn't be fetched, redirect to dashboard
     return <Navigate to="/dashboard" replace />;
   }
 
-  // No token, show landing page
   return <Landing />;
 };
 

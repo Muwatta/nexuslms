@@ -60,6 +60,9 @@ Key design priorities:
 | Student      | Enrollment-only   | Learn, submit, track progress            |
 | Parent       | View-only (child) | Monitor progress, receive reports        |
 
+> See [backend/docs/permission_groups.md](backend/docs/permission_groups.md) for a breakdown of Django
+> **Groups** used by the LMS and which human roles belong in each bucket.
+
 ### Module Architecture
 
 ```

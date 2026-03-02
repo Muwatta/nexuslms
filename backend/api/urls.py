@@ -19,6 +19,7 @@ from .views import (
     student_analytics,
     AIView, 
 )
+from .views.admin_views import SyncGroupsView
 
 router = DefaultRouter()
 router.register("profiles", ProfileViewSet, basename="profiles")
@@ -45,4 +46,5 @@ urlpatterns += [
     path("analytics/course/<int:course_id>/", course_analytics, name="course_analytics"),
     path("analytics/student/<int:student_id>/", student_analytics, name="student_analytics"),
     path("ai/", AIView.as_view(), name="ai"),
+    path("admin/sync-groups/", SyncGroupsView.as_view(), name="sync_groups"),
 ]
