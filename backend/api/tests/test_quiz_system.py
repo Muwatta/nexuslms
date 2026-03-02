@@ -52,8 +52,29 @@ class QuizSystemTests(APITestCase):
         self.assertEqual(resp.status_code, 201)
         submission = QuizSubmission.objects.get(id=resp.data['id'])
         self.assertEqual(submission.score, 2.0)  # two correct each 1 mark
+        self.assertIsNotNone(submission.started_at)
 
     def test_non_teacher_cannot_add_question(self):
         self.client.force_authenticate(user=self.student)
         resp = self.client.post('/api/questions/', {'quiz': self.quiz.id, 'text': 'Fail', 'choices': [], 'correct_index':0}, format='json')
         self.assertEqual(resp.status_code, 403)
+
+    def test_quiz_duration_and_ordering(self):
+        # update quiz to have duration and add ordered questions
+        self.quiz.duration = 15
+        self.quiz.save()
+        # add a third question with explicit order 5
+        q3 = Question.objects.create(quiz=self.quiz, order=5, text='Third', choices=['x','y'], correct_index=0)
+        # change first two orders
+        q1, q2 = list(self.quiz.questions.all()[:2])
+        q1.order = 10; q1.save()
+        q2.order = 1; q2.save()
+        # fetch quiz via API and ensure ordering and duration preserved
+        self.client.force_authenticate(user=self.teacher)
+        resp = self.client.get(f'/api/quizzes/{self.quiz.id}/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['duration'], 15)
+        # questions should come back sorted by order (1,5,10)
+        orders = [q['order'] for q in data['questions']]
+        self.assertEqual(orders, sorted(orders))

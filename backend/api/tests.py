@@ -114,6 +114,40 @@ class ProfilePermissionTests(TestCase):
         for item in resp.json():
             self.assertEqual(item['department'], 'arabic')
 
+    def test_parent_sees_only_their_profile(self):
+        # create a parent user and another unrelated student
+        parent = User.objects.create_user(username='mom', password='pass')
+        parent.role = 'parent'; parent.save()
+        parent_profile = Profile.objects.create(user=parent, role='parent', department='western')
+        other = User.objects.create_user(username='other', password='pass')
+        other.role = 'student'; other.save()
+        Profile.objects.create(user=other, role='student', department='western')
+        # authenticate as parent
+        resp = self.client.post(reverse('token_obtain_pair'), {'username': 'mom', 'password': 'pass'})
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {resp.data['access']}")
+        url = reverse('profiles-list')
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['id'], parent_profile.id)
+
+    def test_student_sees_only_own_profile(self):
+        stud = User.objects.create_user(username='st1', password='pass')
+        stud.role = 'student'; stud.save()
+        stud_profile = Profile.objects.create(user=stud, role='student', department='western')
+        other = User.objects.create_user(username='st2', password='pass')
+        other.role = 'student'; other.save()
+        Profile.objects.create(user=other, role='student', department='western')
+        resp = self.client.post(reverse('token_obtain_pair'), {'username': 'st1', 'password': 'pass'})
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {resp.data['access']}")
+        url = reverse('profiles-list')
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['id'], stud_profile.id)
+
     def test_teacher_cannot_modify(self):
         teach = User.objects.create_user(username='teach2', password='pass')
         teach.role='teacher'; teach.save()

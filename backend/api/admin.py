@@ -1,14 +1,113 @@
 from django.contrib import admin
+from django.contrib.auth import get_user_model
 from .models import (
     Profile, Course, Enrollment, Quiz, QuizSubmission,
     Assignment, AssignmentSubmission, Achievement, Project, Milestone
 )
+from .signals import sync_role_to_groups  # used in admin action
 
-@admin.register(Profile)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "role", "student_class", "created_at")
-    list_filter = ("role", "student_class")
-    search_fields = ("user__username", "user__email")
+User = get_user_model()
+
+
+# INLINE: Edit profile directly on user page - BEST for 500-2000 students
+class ProfileInline(admin.StackedInline):
+    model = Profile
+    can_delete = False
+    verbose_name_plural = "Profile Details"
+    fields = (
+        "role",
+        "department", 
+        "student_class",
+        "phone",
+        "parent_email",
+        "bio",
+    )
+    list_filter = ("role", "department")
+
+
+# Unregister default User admin
+admin.site.unregister(User)
+
+
+@admin.register(User)
+class CustomUserAdmin(admin.ModelAdmin):
+    list_display = (
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "get_role",
+        "get_department",
+        "is_staff",
+        "is_active",
+        "date_joined",
+    )
+    list_filter = (
+        "is_staff",
+        "is_active",
+        "profile__role",      # Filter by role
+        "profile__department",  # Filter by department
+    )
+    search_fields = (
+        "username",
+        "email", 
+        "first_name",
+        "last_name",
+        "profile__phone",  # Search by phone too
+    )
+    inlines = [ProfileInline]  # KEY: Edit role without leaving page
+
+    # admin action for manually re-syncing groups from profile role
+    actions = ["sync_groups_from_role"]
+
+    def sync_groups_from_role(self, request, queryset):
+        """Loop through selected users and re-run the signal handler."""
+        for user in queryset:
+            try:
+                profile = user.profile
+            except Profile.DoesNotExist:
+                continue
+            sync_role_to_groups(Profile, profile, False)
+        self.message_user(request, "Groups synchronized for selected users.")
+    sync_groups_from_role.short_description = "Sync groups from profile role"
+    
+    # Optimize query to avoid N+1 problem
+    def get_queryset(self, request):
+        # include groups so list display doesn't need extra queries
+        return super().get_queryset(request).select_related('profile').prefetch_related('groups')
+    
+    # Human-readable role (shows "Instructor" not "instructor")
+    def get_role(self, obj):
+        try:
+            return obj.profile.get_role_display()
+        except Profile.DoesNotExist:
+            return "-"
+    get_role.short_description = "Role"
+    get_role.admin_order_field = "profile__role"
+    
+    # Show department in list too
+    def get_department(self, obj):
+        try:
+            return obj.profile.get_department_display()
+        except Profile.DoesNotExist:
+            return "-"
+    get_department.short_description = "Department"
+    get_department.admin_order_field = "profile__department"
+    
+    # Display user's groups
+    def get_groups(self, obj):
+        return ", ".join(g.name for g in obj.groups.all())
+    get_groups.short_description = "Groups"
+    get_groups.admin_order_field = "groups__name"
+    
+    # include groups in list view and filters
+    list_display = list(list_display) + ["get_groups"]
+    list_filter = list(list_filter) + ["groups__name"]
+
+
+# REMOVE separate Profile admin - now managed inline
+# @admin.register(Profile)
+# class ProfileAdmin...  # DELETED - redundant
 
 
 @admin.register(Course)
@@ -19,8 +118,8 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(Enrollment)
 class EnrollmentAdmin(admin.ModelAdmin):
-    list_display = ("student", "course", "status", "enrolled_at")  # Fixed: removed created_at, added status
-    list_filter = ("status", "enrolled_at")  # Added filters
+    list_display = ("student", "course", "status", "enrolled_at")
+    list_filter = ("status", "enrolled_at")
     search_fields = ("student__user__username", "course__title")
 
 
@@ -32,7 +131,7 @@ class QuizAdmin(admin.ModelAdmin):
 
 @admin.register(QuizSubmission)
 class QuizSubmissionAdmin(admin.ModelAdmin):
-    list_display = ("student", "quiz", "score", "submitted_at")  # Removed created_at if not in model
+    list_display = ("student", "quiz", "score", "submitted_at")
     search_fields = ("student__user__username", "quiz__title")
 
 
@@ -44,13 +143,13 @@ class AssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(AssignmentSubmission)
 class AssignmentSubmissionAdmin(admin.ModelAdmin):
-    list_display = ("student", "assignment", "file", "submitted_at", "grade")  # Removed created_at if not in model
+    list_display = ("student", "assignment", "file", "submitted_at", "grade")
     search_fields = ("student__user__username", "assignment__title")
 
 
 @admin.register(Achievement)
 class AchievementAdmin(admin.ModelAdmin):
-    list_display = ("student", "title", "achievement_type", "date_earned")  # Removed created_at if not in model
+    list_display = ("student", "title", "achievement_type", "date_earned")
     search_fields = ("student__user__username", "title")
     list_filter = ("achievement_type", "date_earned")
 

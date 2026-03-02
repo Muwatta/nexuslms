@@ -153,6 +153,8 @@ const Signup: React.FC = () => {
                 onChange={handleInputChange}
               >
                 <option value="student">Student</option>
+                <option value="parent">Parent</option>
+                <option value="teacher">Teacher</option>
                 <option value="instructor">Instructor</option>
                 <option value="admin">Admin</option>
               </select>

@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from django.utils import timezone
 
 from api.models import Quiz, QuizSubmission, Question
 from api.serializers import QuizSerializer, QuizSubmissionSerializer, QuestionSerializer
@@ -23,10 +24,18 @@ class QuestionViewSet(ModelViewSet):
     
     def perform_create(self, serializer):
         user = self.request.user
-        role = getattr(user, 'profile', None) and user.profile.role
-        if role not in ["instructor", "admin"]:
-            raise PermissionDenied("Only instructors can add questions")
-        serializer.save()
+        # role may be on user or profile; accept either
+        role = getattr(user, 'role', None) or (getattr(user, 'profile', None) and user.profile.role)
+        if role not in ["instructor", "teacher", "admin"]:
+            raise PermissionDenied("Only instructors/teachers can add questions")
+        # if the caller didn't supply an explicit order, auto-increment
+        quiz = serializer.validated_data.get('quiz')
+        if 'order' not in serializer.validated_data or serializer.validated_data.get('order') is None:
+            from django.db.models import Max
+            max_ord = Question.objects.filter(quiz=quiz).aggregate(Max('order'))['order__max']
+            serializer.save(order=(max_ord or 0) + 1)
+        else:
+            serializer.save()
 
 
 class QuizSubmissionViewSet(ModelViewSet):
@@ -51,14 +60,29 @@ class QuizSubmissionViewSet(ModelViewSet):
         serializer.save(
             student=user_profile,
             score=score,
-            published=False
+            published=False,
+            started_at=timezone.now(),
         )
     
     def calculate_score(self, quiz, answers):
         score = 0
         questions = {q.id: q for q in Question.objects.filter(quiz=quiz)}
         
+        # support two answer formats: list of {question_id, selected_index}
+        # or simple dict of question_id->selected_index
+        if isinstance(answers, dict):
+            for qid_str, sel in answers.items():
+                try:
+                    qid = int(qid_str)
+                except Exception:
+                    continue
+                if qid in questions and sel == questions[qid].correct_index:
+                    score += questions[qid].marks
+            return score
+        
         for answer in answers:
+            if not isinstance(answer, dict):
+                continue
             qid = answer.get('question_id')
             selected_index = answer.get('selected_index', -1) 
             

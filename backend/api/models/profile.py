@@ -5,8 +5,12 @@ from django.utils import timezone
 class Profile(models.Model):
     ROLE_CHOICES = [
         ("student", "Student"),
+        ("teacher", "Teacher"),
         ("instructor", "Instructor"),
         ("admin", "Admin"),
+        ("parent", "Parent"),
+        ("school_admin", "School Admin"),
+        ("super_admin", "Super Admin"),
     ]
 
     DEPARTMENT_CHOICES = [
@@ -46,7 +50,7 @@ class Profile(models.Model):
         null=True,
         blank=True
     )
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="student")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="student")
     bio = models.TextField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     parent_email = models.EmailField(blank=True)

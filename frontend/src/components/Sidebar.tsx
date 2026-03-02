@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 
 interface SidebarProps {
@@ -6,22 +6,60 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-const links = [
+interface SidebarLink {
+  to: string;
+  label: string;
+  roles?: string[]; // If undefined, shows for all; if defined, only shows for those roles
+}
+
+const allLinks: SidebarLink[] = [
   { to: "/dashboard", label: "🏠 Dashboard" },
   { to: "/courses", label: "📚 Courses" },
   { to: "/enrollments", label: "✏️ My Classes" },
   { to: "/assignments", label: "📝 Assignments" },
   { to: "/quizzes", label: "❓ Quizzes" },
-  { to: "/analytics", label: "📊 Analytics" },
+  {
+    to: "/analytics",
+    label: "📊 Analytics",
+    roles: ["instructor", "teacher", "admin", "school_admin", "super_admin"],
+  },
   { to: "/achievements", label: "🏆 Achievements" },
   { to: "/projects", label: "📋 Projects" },
   { to: "/milestones", label: "🏁 Milestones" },
   { to: "/ai", label: "🤖 AI Help" },
   { to: "/practice", label: "🧠 Practice" },
-  { to: "/manage-users", label: "👥 Manage Users" },
+  {
+    to: "/manage-users",
+    label: "👥 Manage Users",
+    roles: ["admin", "school_admin", "super_admin"],
+  },
+  { to: "/parent-portal", label: "👨‍👧 Parent Portal", roles: ["parent"] },
+  {
+    to: "/admin",
+    label: "⚙️ Admin Dashboard",
+    roles: ["admin", "school_admin", "super_admin"],
+  },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
+  const currentRole = useMemo(() => {
+    try {
+      const userData = localStorage.getItem("user");
+      return userData ? JSON.parse(userData).role : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const visibleLinks = useMemo(() => {
+    return allLinks.filter((link) => {
+      // If no roles specified, show to everyone
+      if (!link.roles) return true;
+      // Otherwise, only show if user's role is in the allowed roles
+      return link.roles.includes(currentRole);
+    });
+  }, [currentRole]);
+
   return (
     <>
       {/* overlay on small screens when sidebar open */}
@@ -37,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         <nav className="mt-16 flex flex-col space-y-1 px-4">
-          {links.map((item) => (
+          {visibleLinks.map((item) => (
             <Link
               key={item.to}
               to={item.to}

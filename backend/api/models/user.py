@@ -5,8 +5,12 @@ from django.utils import timezone
 class User(AbstractUser):
     ROLE_CHOICES = (
         ("student", "Student"),
+        ("teacher", "Teacher"),
         ("instructor", "Instructor"),
         ("admin", "Admin"),
+        ("parent", "Parent"),
+        ("school_admin", "School Admin"),
+        ("super_admin", "Super Admin"),
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="student")
 

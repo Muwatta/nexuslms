@@ -2,6 +2,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from api.permissions import IsAdminOrInstructor, IsOwnerOrAdmin
 from rest_framework.response import Response
+from rest_framework.decorators import action 
 from rest_framework import status
 from rest_framework.views import APIView
 
@@ -17,7 +18,11 @@ class ProfileViewSet(ModelViewSet):
     serializer_class = ProfileSerializer
     # Allow admins/instructors to list/manage profiles; owners can view/update their own
     def get_permissions(self):
-        if self.action in ['list', 'create']:
+        # allow any authenticated user to list (they'll only see what
+        # get_queryset returns); creation still restricted to staff roles
+        if self.action == 'list':
+            return [IsAuthenticated()]
+        if self.action == 'create':
             return [IsAuthenticated(), IsAdminOrInstructor()]
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsOwnerOrAdmin()]
@@ -27,16 +32,17 @@ class ProfileViewSet(ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         user_role = getattr(user, 'role', None)
-        # admin and teachers see profiles within their department only
+        # admin, teachers and instructors see profiles within their department
         try:
             user_profile = Profile.objects.get(user=user)
         except Profile.DoesNotExist:
             user_profile = None
-        if user_role == 'admin' and user_profile:
+        if user_role in ['admin', 'teacher', 'instructor'] and user_profile:
             return qs.filter(department=user_profile.department)
-        if user_role in ['teacher', 'instructor'] and user_profile:
-            return qs.filter(department=user_profile.department)
-        # default: only superusers or staff can see all
+        # parents and students only see their own profile
+        if user_role in ['parent', 'student']:
+            return qs.filter(user=user)
+        # superusers can see everything
         if user.is_superuser:
             return qs
         return qs.none()

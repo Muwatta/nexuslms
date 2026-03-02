@@ -7,7 +7,13 @@ User = get_user_model()
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     role = serializers.ChoiceField(
-        choices=[("student", "Student"), ("instructor", "Instructor"), ("admin", "Admin")],
+        choices=[
+            ("student", "Student"),
+            ("parent", "Parent"),
+            ("teacher", "Teacher"),
+            ("instructor", "Instructor"),
+            ("admin", "Admin"),
+        ],
         default="student",
     )
     department = serializers.ChoiceField(

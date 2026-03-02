@@ -298,6 +298,7 @@ const Assignments: React.FC = () => {
                                   <td>{s.published ? "Yes" : "No"}</td>
                                   <td className="space-x-2">
                                     {(profile?.role === "teacher" ||
+                                      profile?.role === "instructor" ||
                                       profile?.role === "admin") && (
                                       <button
                                         onClick={() => publish(s.id)}

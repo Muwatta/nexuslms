@@ -158,7 +158,9 @@ const PaymentSection: React.FC<Props> = ({ profile }) => {
                       {uploadingId === p.id ? "Uploading..." : "Upload"}
                     </label>
                   )}
-                  {(profile.role === "teacher" || profile.role === "admin") &&
+                  {(profile.role === "teacher" ||
+                    profile.role === "instructor" ||
+                    profile.role === "admin") &&
                     p.status === "pending" && (
                       <>
                         <button

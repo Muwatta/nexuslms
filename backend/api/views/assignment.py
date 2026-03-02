@@ -48,7 +48,7 @@ class AssignmentViewSet(ModelViewSet):
             user_role = request.user.profile.role
         except Exception:
             user_role = getattr(request.user, 'role', None)
-        if user_role not in ["teacher", "admin", "instructor"]:
+        if user_role not in ["teacher", "instructor", "admin"]:
             return Response({"detail": "Not allowed"}, status=403)
 
         try:
@@ -126,14 +126,14 @@ class AssignmentSubmissionViewSet(ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if user.role in ["teacher", "admin"]:
+        if user.role in ["teacher", "instructor", "admin"]:
             return qs
         return qs.filter(published=True)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def publish(self, request, pk=None):
         sub = self.get_object()
-        if request.user.role not in ["teacher", "admin"]:
+        if request.user.role not in ["teacher", "instructor", "admin"]:
             return Response({"detail": "Not allowed"}, status=403)
         sub.published = True
         sub.save()
@@ -144,7 +144,7 @@ class AssignmentSubmissionViewSet(ModelViewSet):
         from django.http import HttpResponse
         from reportlab.pdfgen import canvas
         sub = self.get_object()
-        if not sub.published and request.user.role not in ["teacher", "admin"]:
+        if not sub.published and request.user.role not in ["teacher", "instructor", "admin"]:
             return Response({"detail": "Not available"}, status=403)
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="assignment_{sub.id}.pdf"'

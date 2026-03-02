@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -21,10 +21,33 @@ import Locations from "./pages/Locations";
 import Contact from "./pages/Contact";
 import PracticeQuestions from "./pages/PracticeQuestions";
 import ManageUsers from "./pages/ManageUsers";
+import ParentPortal from "./pages/ParentPortal";
+import AdminDashboard from "./pages/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/Navbar";
 import AIChat from "./components/AIChat";
 import Notifications from "./components/Notifications";
+import { getDashboardRouteByRole, getUserData } from "./utils/authUtils";
+
+/**
+ * Component that handles redirecting logged-in users from home page to their dashboard
+ */
+const HomeRouter: React.FC = () => {
+  const token = localStorage.getItem("access_token");
+
+  if (token) {
+    const userData = getUserData();
+    if (userData) {
+      const dashboardRoute = getDashboardRouteByRole(userData.role);
+      return <Navigate to={dashboardRoute} replace />;
+    }
+    // If token exists but user data couldn't be fetched, redirect to dashboard
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // No token, show landing page
+  return <Landing />;
+};
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
@@ -39,8 +62,8 @@ function App() {
         )}
         <main className={`pt-16 ${token ? "md:ml-64" : ""}`}>
           <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Landing />} />
+            {/* Home Route - redirects to appropriate dashboard if logged in */}
+            <Route path="/" element={<HomeRouter />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
 
@@ -139,6 +162,22 @@ function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/practice" element={<PracticeQuestions />} />
             <Route path="/manage-users" element={<ManageUsers />} />
+            <Route
+              path="/parent-portal"
+              element={
+                <ProtectedRoute>
+                  <ParentPortal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </main>
         <AIChat />

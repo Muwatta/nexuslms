@@ -15,6 +15,7 @@ class QuizSubmission(models.Model):
     answers = models.JSONField(default=dict)
     score = models.FloatField(null=True, blank=True)
     published = models.BooleanField(default=False)
+    started_at = models.DateTimeField(null=True, blank=True)
     submitted_at = models.DateTimeField(default=timezone.now, editable=False)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 

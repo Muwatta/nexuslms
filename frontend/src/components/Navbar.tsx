@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { WHATSAPP_NUMBER, formatWhatsAppLink } from "../config/contact";
+import { clearUserData } from "../utils/authUtils";
 
 interface NavbarProps {
   toggleSidebar?: () => void;
@@ -12,8 +13,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
   );
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearUserData();
     window.location.href = "/login";
   };
   const token = localStorage.getItem("access_token");

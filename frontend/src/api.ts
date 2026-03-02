@@ -18,8 +18,6 @@ api.interceptors.request.use((config) => {
 // Response interceptor: extract results from paginated responses
 api.interceptors.response.use(
   (response) => {
-    // Django REST returns {count, results, next, previous}
-    // Auto-extract the array so components can `.filter`/`.map` without crashing
     if (response.data && Array.isArray(response.data.results)) {
       return {
         ...response,

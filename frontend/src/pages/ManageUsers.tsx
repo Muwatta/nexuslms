@@ -99,6 +99,8 @@ const ManageUsers: React.FC = () => {
                 className="border p-2"
               >
                 <option value="student">Student</option>
+                <option value="parent">Parent</option>
+                <option value="teacher">Teacher</option>
                 <option value="instructor">Instructor</option>
                 <option value="admin">Admin</option>
               </select>

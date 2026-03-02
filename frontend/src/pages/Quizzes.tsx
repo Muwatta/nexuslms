@@ -6,11 +6,14 @@ interface Quiz {
   title: string;
   description: string;
   questions: Question[];
+  duration?: number;
 }
 interface Question {
   id: number;
   text: string;
   choices: string[];
+  correct_index?: number;
+  order?: number;
 }
 
 const Quizzes: React.FC = () => {
@@ -18,6 +21,8 @@ const Quizzes: React.FC = () => {
   const [selected, setSelected] = useState<Quiz | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: number }>({});
   const [result, setResult] = useState<number | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null); // seconds
 
   useEffect(() => {
     api.get("/quizzes/").then((res) => setQuizzes(res.data));
@@ -27,6 +32,12 @@ const Quizzes: React.FC = () => {
     setSelected(quiz);
     setAnswers({});
     setResult(null);
+    setStartTime(Date.now());
+    if (quiz.duration) {
+      setTimeLeft(quiz.duration * 60);
+    } else {
+      setTimeLeft(null);
+    }
   };
 
   const handleAnswer = (qid: number, idx: number) => {
@@ -44,10 +55,30 @@ const Quizzes: React.FC = () => {
     setResult(resp.data.score);
   };
 
+  // countdown timer effect
+  useEffect(() => {
+    if (timeLeft == null) return;
+    if (timeLeft <= 0) {
+      // time up, auto submit
+      submit();
+      return;
+    }
+    const timer = setInterval(() => {
+      setTimeLeft((t) => (t != null ? t - 1 : t));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft]);
+
   if (selected)
     return (
       <div className="p-6">
         <h2 className="text-2xl font-bold">{selected.title}</h2>
+        {timeLeft != null && (
+          <p className="text-red-600 font-bold">
+            Time left: {Math.floor(timeLeft / 60)}:
+            {("0" + (timeLeft % 60)).slice(-2)}
+          </p>
+        )}
         {selected.questions.map((q) => (
           <div key={q.id} className="mt-4">
             <p className="font-semibold">{q.text}</p>
@@ -57,19 +88,45 @@ const Quizzes: React.FC = () => {
                   type="radio"
                   name={`q${q.id}`}
                   onChange={() => handleAnswer(q.id, i)}
+                  disabled={result !== null}
                 />{" "}
                 {c}
               </label>
             ))}
           </div>
         ))}
-        <button
-          onClick={submit}
-          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          Submit
-        </button>
-        {result !== null && <p className="mt-4">Score: {result}</p>}
+        {result === null ? (
+          <button
+            onClick={submit}
+            className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            Submit
+          </button>
+        ) : (
+          <>
+            <p className="mt-4">Score: {result}</p>
+            {/* review section */}
+            <div className="mt-6">
+              <h3 className="font-semibold">Review</h3>
+              {selected.questions.map((q) => {
+                const selectedIdx = answers[q.id];
+                const correctIdx = q.correct_index;
+                return (
+                  <div key={q.id} className="mt-2 p-2 border rounded">
+                    <p className="font-semibold">{q.text}</p>
+                    <p>
+                      Your answer: {q.choices[selectedIdx] || "—"}{" "}
+                      {selectedIdx === correctIdx ? "✅" : "❌"}
+                    </p>
+                    {!(selectedIdx === correctIdx) && (
+                      <p>Correct answer: {q.choices[correctIdx]}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     );
 
