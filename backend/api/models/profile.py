@@ -19,21 +19,30 @@ class Profile(models.Model):
         ("programming", "Programming"),
     ]
 
-    CLASS_CHOICES = [
-        ("B1", "Basic 1"),
-        ("B2", "Basic 2"),
-        ("B3", "Basic 3"),
-        ("B4", "Basic 4"),
-        ("B5", "Basic 5"),
+    # Department-specific class choices
+    WESTERN_CLASSES = [
         ("JSS1", "JSS 1"),
         ("JSS2", "JSS 2"),
         ("JSS3", "JSS 3"),
         ("SS1", "SS 1"),
         ("SS2", "SS 2"),
         ("SS3", "SS 3"),
-        ("idaady", "Idaady"),
-        ("thanawi", "Thanawi"),
     ]
+    
+    ARABIC_CLASSES = [
+        ("ibtidaahi", "Ibtidaahi"),
+        ("idaady", "Idaady"),
+        ("thanawy", "Thanawy"),
+    ]
+    
+    PROGRAMMING_CLASSES = [
+        ("web_dev", "Web Dev"),
+        ("ai_ml", "AI & ML"),
+        ("ai_automation", "AI Automation"),
+        ("scratch", "Scratch"),
+    ]
+    
+    CLASS_CHOICES = WESTERN_CLASSES + ARABIC_CLASSES + PROGRAMMING_CLASSES
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -45,7 +54,7 @@ class Profile(models.Model):
         default="western"
     )
     student_class = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=CLASS_CHOICES,
         null=True,
         blank=True
@@ -56,5 +65,21 @@ class Profile(models.Model):
     parent_email = models.EmailField(blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
+    @classmethod
+    def get_classes_for_department(cls, department):
+        """Return class choices for a specific department."""
+        if department == "western":
+            return cls.WESTERN_CLASSES
+        elif department == "arabic":
+            return cls.ARABIC_CLASSES
+        elif department == "programming":
+            return cls.PROGRAMMING_CLASSES
+        return cls.CLASS_CHOICES
+
     def __str__(self):
-        return f"{self.user.username} ({self.role}) - {self.get_department_display()}"
+        # user may have been deleted or not yet assigned; avoid RelatedObjectDoesNotExist
+        try:
+            username = self.user.username
+        except Exception:
+            username = "<no user>"
+        return f"{username} ({self.role}) - {self.get_department_display()}"

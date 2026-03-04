@@ -15,6 +15,9 @@ class Quiz(models.Model):
     created_at = models.DateTimeField(default=timezone.now, editable=False)
     updated_at = models.DateTimeField(default=timezone.now, editable=False)
 
+    class Meta:
+        verbose_name_plural = "Quizzes"
+
     def __str__(self):
         return f"{self.title} ({self.course.title})"
 
