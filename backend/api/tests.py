@@ -175,3 +175,41 @@ class ProfilePermissionTests(TestCase):
         newp = Profile.objects.filter(user__username='newstud').first()
         self.assertEqual(newp.department, 'western')
 
+
+class StudentIDTests(TestCase):
+    def test_student_id_generated(self):
+        from django.utils import timezone
+        user = User.objects.create_user(username='x', password='y')
+        user.role = 'student'; user.save()
+        p = Profile.objects.create(user=user, role='student', department='western')
+        self.assertIsNotNone(p.student_id)
+        year = timezone.now().year % 100
+        self.assertTrue(str(p.student_id).startswith(f"sc/{year:02d}/"))
+        # uniqueness
+        user2 = User.objects.create_user(username='x2', password='y2')
+        user2.role = 'student'; user2.save()
+        p2 = Profile.objects.create(user=user2, role='student', department='western')
+        self.assertNotEqual(p.student_id, p2.student_id)
+
+
+class AdminExcelImportTests(TestCase):
+    def setUp(self):
+        from django.test import Client
+        self.client = Client()
+        self.admin = User.objects.create_superuser('adm2', 'a@a.com', 'pass')
+        self.client.force_login(self.admin)
+
+    def test_import_excel(self):
+        import io, openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(['username','email','first_name','last_name','role','department','student_class'])
+        ws.append(['stud1','s1@example.com','S','One','student','western','JSS1'])
+        stream = io.BytesIO()
+        wb.save(stream)
+        stream.seek(0)
+        resp = self.client.post(reverse('admin:user_import_excel'), {'file': stream})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(User.objects.filter(username='stud1').exists())
+        self.assertTrue(Profile.objects.filter(user__username='stud1').exists())
+

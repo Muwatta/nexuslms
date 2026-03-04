@@ -8,6 +8,7 @@ interface Profile {
   role: string;
   department: string;
   student_class?: string;
+  student_id?: string;
 }
 
 const ManageUsers: React.FC = () => {
@@ -23,7 +24,9 @@ const ManageUsers: React.FC = () => {
     department: "western",
     student_class: "JSS1",
   });
-  const [classChoices, setClassChoices] = useState<{value:string,label:string}[]>([]);
+  const [classChoices, setClassChoices] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [message, setMessage] = useState<string>("");
 
   useEffect(() => {
@@ -37,10 +40,17 @@ const ManageUsers: React.FC = () => {
   useEffect(() => {
     const fetchClasses = async () => {
       try {
-        const resp = await api.get(`/class-choices/?department=${newUser.department}`);
+        const resp = await api.get(
+          `/class-choices/?department=${newUser.department}`,
+        );
         setClassChoices(resp.data.classes);
-        if (!resp.data.classes.find((c:any) => c.value === newUser.student_class)) {
-          setNewUser((u) => ({ ...u, student_class: resp.data.classes[0]?.value || "" }));
+        if (
+          !resp.data.classes.find((c: any) => c.value === newUser.student_class)
+        ) {
+          setNewUser((u) => ({
+            ...u,
+            student_class: resp.data.classes[0]?.value || "",
+          }));
         }
       } catch (e) {}
     };
@@ -82,13 +92,13 @@ const ManageUsers: React.FC = () => {
   const handleDelete = async (profile: any) => {
     if (!window.confirm("Delete this user?")) return;
     try {
-        await api.delete(`/profiles/${profile.id}/`);
-        setMessage("User deleted");
-        const res = await api.get("/profiles/");
-        setProfiles(res.data);
-      } catch (err: any) {
-        setMessage("Delete failed: " + (err.response?.data || err.message));
-      }
+      await api.delete(`/profiles/${profile.id}/`);
+      setMessage("User deleted");
+      const res = await api.get("/profiles/");
+      setProfiles(res.data);
+    } catch (err: any) {
+      setMessage("Delete failed: " + (err.response?.data || err.message));
+    }
   };
 
   const handleInput = (
@@ -235,6 +245,7 @@ const ManageUsers: React.FC = () => {
               <th className="p-2">Role</th>
               <th className="p-2">Dept</th>
               <th className="p-2">Class</th>
+              <th className="p-2">Student ID</th>
               <th className="p-2">Actions</th>
             </tr>
           </thead>
@@ -252,6 +263,7 @@ const ManageUsers: React.FC = () => {
                 <td className="p-2 capitalize">{p.role}</td>
                 <td className="p-2">{p.department}</td>
                 <td className="p-2">{p.student_class}</td>
+                <td className="p-2">{p.student_id || "-"}</td>
                 <td className="p-2">
                   <button
                     onClick={() => handleEdit(p)}
@@ -270,10 +282,15 @@ const ManageUsers: React.FC = () => {
                       const pwd = window.prompt("Enter new password:");
                       if (pwd) {
                         try {
-                          await api.post(`/profiles/${p.id}/set_password/`, { password: pwd });
+                          await api.post(`/profiles/${p.id}/set_password/`, {
+                            password: pwd,
+                          });
                           setMessage("Password updated");
                         } catch (err: any) {
-                          setMessage("Password change failed: " + (err.response?.data || err.message));
+                          setMessage(
+                            "Password change failed: " +
+                              (err.response?.data || err.message),
+                          );
                         }
                       }
                     }}

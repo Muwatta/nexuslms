@@ -9,7 +9,7 @@ Objective
 Key UX principles
 
 - Role-based dashboards (School Admin, Instructor, Finance)
-- Bulk actions for common tasks (CSV imports, bulk enrollments)
+- Bulk actions for common tasks (CSV/Excel imports, bulk enrollments)
 - Clear ‘next step’ callouts for onboarding tasks
 - Audit trails and confirm dialogs for destructive actions
 
@@ -24,7 +24,9 @@ Primary pages & features
 
 - List with filters: role, department, group membership
 - Create user wizard (email, role, auto-generate password, send welcome)
-- Bulk CSV import with validation feedback
+- Each student receives an auto-generated unique ID (sc/YY/####) stored on profile
+- Bulk Excel import with validation feedback (admin can upload spreadsheet of
+  thousands of students to create accounts in one go)
 - Select users → action: Sync groups from role (calls admin action)
 
 3. Courses

@@ -41,6 +41,7 @@ class ProfileInline(admin.StackedInline):
         "role",
         "department", 
         "student_class",
+        "student_id",
         "phone",
         "parent_email",
         "bio",
@@ -62,6 +63,7 @@ class CustomUserAdmin(BaseUserAdmin):
         "last_name",
         "get_role",
         "get_department",
+        "get_student_id",
         "is_staff",
         "is_active",
         "date_joined",
@@ -96,12 +98,87 @@ class CustomUserAdmin(BaseUserAdmin):
     sync_groups_from_role.short_description = "Sync groups from profile role"
     
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('profile').prefetch_related('groups')
+        # restrict what users see based on their role, similar to API
+        qs = super().get_queryset(request).select_related('profile').prefetch_related('groups')
+        if request.user.is_superuser:
+            return qs
+        try:
+            prof = request.user.profile
+        except Profile.DoesNotExist:
+            return qs.none()
+        role = prof.role
+        if role in ['admin', 'teacher', 'instructor']:
+            return qs.filter(profile__department=prof.department)
+        if role in ['parent', 'student']:
+            return qs.filter(id=request.user.id)
+        # visitors / others see nothing
+        return qs.none()
 
     def get_inline_instances(self, request, obj=None):
         if obj is None:
             return []
         return super().get_inline_instances(request, obj)
+
+    # ---- Excel import helper ----
+    change_list_template = "admin/user_change_list.html"
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        qs = self.get_queryset(request)
+        extra_context['user_count'] = qs.count()
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path('import-excel/', self.admin_site.admin_view(self.import_excel), name='user_import_excel'),
+        ]
+        return custom_urls + urls
+
+    def import_excel(self, request):
+        from django import forms
+        import openpyxl
+        from django.shortcuts import render, redirect
+
+        class UploadForm(forms.Form):
+            file = forms.FileField()
+
+        if request.method == 'POST':
+            form = UploadForm(request.POST, request.FILES)
+            if form.is_valid():
+                wb = openpyxl.load_workbook(form.cleaned_data['file'])
+                sheet = wb.active
+                # expected columns: username,email,first_name,last_name,role,department,student_class
+                for row in sheet.iter_rows(min_row=2, values_only=True):
+                    username, email, first_name, last_name, role, dept, student_cls = row[:7]
+                    if not username:
+                        continue
+                    user, created = User.objects.get_or_create(
+                        username=username,
+                        defaults={
+                            'email': email or '',
+                            'first_name': first_name or '',
+                            'last_name': last_name or '',
+                        }
+                    )
+                    if created:
+                        user.set_password(User.objects.make_random_password())
+                        user.save()
+                    profile, _ = Profile.objects.get_or_create(user=user)
+                    if role:
+                        profile.role = role
+                    if dept:
+                        profile.department = dept
+                    if student_cls:
+                        profile.student_class = student_cls
+                    profile.save()
+                self.message_user(request, "Users imported from Excel")
+                return redirect('..')
+        else:
+            form = UploadForm()
+        context = {'form': form, 'title': 'Import users from Excel'}
+        return render(request, 'admin/import_excel.html', context)
     
     def get_role(self, obj):
         try:
@@ -110,6 +187,14 @@ class CustomUserAdmin(BaseUserAdmin):
             return "-"
     get_role.short_description = "Role"
     get_role.admin_order_field = "profile__role"
+
+    def get_student_id(self, obj):
+        try:
+            return obj.profile.student_id
+        except Profile.DoesNotExist:
+            return "-"
+    get_student_id.short_description = "Student ID"
+    get_student_id.admin_order_field = "profile__student_id"
     
     def get_department(self, obj):
         try:

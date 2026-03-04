@@ -63,6 +63,8 @@ class Profile(models.Model):
     bio = models.TextField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     parent_email = models.EmailField(blank=True)
+    student_id = models.CharField(max_length=20, unique=True, blank=True, null=True,
+                                  help_text="Automatically generated unique student identifier")
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     @classmethod
@@ -82,4 +84,22 @@ class Profile(models.Model):
             username = self.user.username
         except Exception:
             username = "<no user>"
-        return f"{username} ({self.role}) - {self.get_department_display()}"
+        sid = f" [{self.student_id}]" if self.student_id else ""
+        return f"{username}{sid} ({self.role}) - {self.get_department_display()}"
+
+    def save(self, *args, **kwargs):
+        # generate student_id upon first save for students
+        if self.role == "student" and not self.student_id:
+            self.student_id = self._generate_student_id()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def _generate_student_id(cls):
+        import random
+        # format: sc/<two-digit-year>/<four-digit-random>
+        year = timezone.now().year % 100
+        while True:
+            num = f"{random.randint(0, 9999):04d}"
+            candidate = f"sc/{year}/{num}"
+            if not cls.objects.filter(student_id=candidate).exists():
+                return candidate
