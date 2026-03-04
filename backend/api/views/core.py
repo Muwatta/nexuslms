@@ -32,11 +32,13 @@ class ProfileViewSet(ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         user_role = getattr(user, 'role', None)
-        # admin, teachers and instructors see profiles within their department
+        # debug logging to help diagnose empty lists
         try:
             user_profile = Profile.objects.get(user=user)
         except Profile.DoesNotExist:
             user_profile = None
+        print(f"[DEBUG] ProfileViewSet.get_queryset user={user} role={user_role} has_profile={user_profile is not None}")
+        # admin, teachers and instructors see profiles within their department
         if user_role in ['admin', 'teacher', 'instructor'] and user_profile:
             return qs.filter(department=user_profile.department)
         # parents and students only see their own profile
@@ -71,6 +73,18 @@ class ProfileViewSet(ModelViewSet):
         if user_role != 'admin' and not self.request.user.is_superuser:
             raise PermissionDenied('Only admins can delete profiles')
         instance.delete()
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrInstructor])
+    def set_password(self, request, pk=None):
+        """Allow admin/teachers/instructors to set a user's password."""
+        profile = self.get_object()
+        pwd = request.data.get('password')
+        if not pwd:
+            return Response({"error": "Password required"}, status=status.HTTP_400_BAD_REQUEST)
+        user = profile.user
+        user.set_password(pwd)
+        user.save()
+        return Response({"detail": "Password updated"})
 
 
 class RegisterView(APIView):

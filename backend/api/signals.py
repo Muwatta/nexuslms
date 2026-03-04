@@ -23,8 +23,9 @@ ROLE_GROUP_MAP = {
 
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        Profile.objects.create(user=instance)
+    # Ensure every User has a Profile. Use get_or_create so existing users
+    # without profiles (e.g. imported or created before this signal) get one.
+    Profile.objects.get_or_create(user=instance)
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
@@ -40,7 +41,6 @@ def sync_role_to_groups(sender, instance, created, **kwargs):
     user = instance.user
     role = instance.role
     
-    # Clear existing groups and add new ones based on role
     user.groups.clear()
     group_names = ROLE_GROUP_MAP.get(role, [])
     
@@ -48,7 +48,6 @@ def sync_role_to_groups(sender, instance, created, **kwargs):
         group, _ = Group.objects.get_or_create(name=name)
         user.groups.add(group)
 
-# notify students when a new assignment is added
 @receiver(post_save, sender=Assignment)
 def announce_new_assignment(sender, instance, created, **kwargs):
     if created:

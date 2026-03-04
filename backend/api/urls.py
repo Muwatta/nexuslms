@@ -1,5 +1,8 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 from .views import (
     ProfileViewSet,
     RegisterView,
@@ -20,6 +23,20 @@ from .views import (
     AIView, 
 )
 from .views.admin_views import SyncGroupsView
+from .models import Profile
+
+
+class ClassChoicesByDepartmentView(APIView):
+    """Return class choices for a specific department."""
+    
+    def get(self, request):
+        department = request.query_params.get('department', 'western')
+        classes = Profile.get_classes_for_department(department)
+        return Response({
+            'department': department,
+            'classes': [{'value': value, 'label': label} for value, label in classes]
+        })
+
 
 router = DefaultRouter()
 router.register("profiles", ProfileViewSet, basename="profiles")
@@ -47,4 +64,5 @@ urlpatterns += [
     path("analytics/student/<int:student_id>/", student_analytics, name="student_analytics"),
     path("ai/", AIView.as_view(), name="ai"),
     path("admin/sync-groups/", SyncGroupsView.as_view(), name="sync_groups"),
+    path("class-choices/", ClassChoicesByDepartmentView.as_view(), name="class_choices"),
 ]
