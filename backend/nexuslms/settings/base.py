@@ -150,4 +150,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Channels config
 ASGI_APPLICATION = "nexuslms.asgi.application"
 
+# Use custom user model defined in api.models.user
+AUTH_USER_MODEL = 'api.User'
+
 PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
