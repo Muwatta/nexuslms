@@ -100,14 +100,9 @@ class CustomUserAdmin(admin.ModelAdmin):
     get_groups.short_description = "Groups"
     get_groups.admin_order_field = "groups__name"
     
-    # include groups in list view and filters
     list_display = list(list_display) + ["get_groups"]
     list_filter = list(list_filter) + ["groups__name"]
 
-
-# REMOVE separate Profile admin - now managed inline
-# @admin.register(Profile)
-# class ProfileAdmin...  # DELETED - redundant
 
 
 @admin.register(Course)

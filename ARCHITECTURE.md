@@ -78,10 +78,10 @@
 │                        DATABASE                                  │
 │  SQLite (Dev) / PostgreSQL (Production)                          │
 ├──────────────────────────────────────────────────────────────────┤
-│                                                                   │
+│                                                                  │
 │  Core Tables                                                     │
 │  ├─ auth_user        (Django built-in)                           │
-│  ├─ api_profile      (Extended user info + 🆕 dept, bio, phone) │
+│  ├─ api_profile      (Extended user info + 🆕 dept, bio, phone)  │
 │  ├─ api_course       (Course definitions)                        │
 │  ├─ api_enrollment   (Student enrollments)                       │
 │  ├─ api_assignment   (Course assignments)                        │
