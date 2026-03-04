@@ -2,12 +2,14 @@ import React, { useEffect, useState } from "react";
 import api from "../api";
 import StatsCard from "../components/StatsCard";
 import PaymentSection from "../components/PaymentSection";
+import { getUserData } from "../utils/authUtils";
 
 const ArabicDashboard: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const userData = getUserData();
 
   useEffect(() => {
     Promise.all([
@@ -29,13 +31,21 @@ const ArabicDashboard: React.FC = () => {
     ]).finally(() => setLoading(false));
   }, []);
 
+  // Function to format name for greeting
+  const getGreetingName = (): string => {
+    if (profile?.user?.first_name) {
+      return profile.user.first_name;
+    }
+    return profile?.user?.username || userData?.username || "Student";
+  };
+
   return (
     <div className="p-6 bg-gradient-to-b from-green-50 dark:from-green-900">
       {/* Header */}
       <div className="mb-8 text-center">
         <div className="text-5xl mb-2">🕌</div>
         <h1 className="text-4xl font-bold text-green-900 dark:text-green-300">
-          أكاديمية العربية
+          مرحبا {getGreetingName()} إلى مدرسة الموطأ
         </h1>
         <p className="text-lg text-green-700 dark:text-green-400">
           Arabic School Excellence
@@ -43,7 +53,7 @@ const ArabicDashboard: React.FC = () => {
         {profile && (
           <>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              الطالب: {profile.user?.username} | الفصل: {profile.student_class}
+              الفصل: {profile.student_class}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               استخدم شريط التنقل لعرض الدروس، الواجبات، والمزيد. قم بالتبديل بين

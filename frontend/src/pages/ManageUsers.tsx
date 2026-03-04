@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 interface Profile {
   id: number;
-  user: { username: string };
+  user: { id: number; username: string };
   role: string;
   department: string;
   student_class?: string;
@@ -15,13 +15,15 @@ const ManageUsers: React.FC = () => {
   const [selected, setSelected] = useState<number[]>([]);
   const [me, setMe] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [newUser, setNewUser] = useState({
     username: "",
     password: "",
     role: "student",
     department: "western",
-    student_class: "B1",
+    student_class: "JSS1",
   });
+  const [classChoices, setClassChoices] = useState<{value:string,label:string}[]>([]);
   const [message, setMessage] = useState<string>("");
 
   useEffect(() => {
@@ -30,6 +32,20 @@ const ManageUsers: React.FC = () => {
       if (res.data.length) setMe(res.data[0]);
     });
   }, []);
+
+  // fetch class choices whenever department changes
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const resp = await api.get(`/class-choices/?department=${newUser.department}`);
+        setClassChoices(resp.data.classes);
+        if (!resp.data.classes.find((c:any) => c.value === newUser.student_class)) {
+          setNewUser((u) => ({ ...u, student_class: resp.data.classes[0]?.value || "" }));
+        }
+      } catch (e) {}
+    };
+    if (newUser.role === "student") fetchClasses();
+  }, [newUser.department, newUser.role]);
 
   const toggleSelect = (id: number) => {
     setSelected((prev) =>
@@ -51,6 +67,30 @@ const ManageUsers: React.FC = () => {
     }
   };
 
+  const handleEdit = (profile: any) => {
+    setEditingId(profile.id);
+    setShowForm(true);
+    setNewUser({
+      username: profile.user.username,
+      password: "",
+      role: profile.role,
+      department: profile.department || "western",
+      student_class: profile.student_class || "",
+    });
+  };
+
+  const handleDelete = async (profile: any) => {
+    if (!window.confirm("Delete this user?")) return;
+    try {
+        await api.delete(`/profiles/${profile.id}/`);
+        setMessage("User deleted");
+        const res = await api.get("/profiles/");
+        setProfiles(res.data);
+      } catch (err: any) {
+        setMessage("Delete failed: " + (err.response?.data || err.message));
+      }
+  };
+
   const handleInput = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
@@ -61,9 +101,21 @@ const ManageUsers: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post("/register/", newUser);
-      setMessage("Created user, reload page");
+      if (editingId) {
+        // update existing profile (omit password if blank)
+        const payload: any = { ...newUser };
+        if (!payload.password) delete payload.password;
+        await api.patch(`/profiles/${editingId}/`, payload);
+        setMessage("Updated user");
+      } else {
+        await api.post("/register/", newUser);
+        setMessage("Created user");
+      }
       setShowForm(false);
+      setEditingId(null);
+      // refresh list
+      const res = await api.get("/profiles/");
+      setProfiles(res.data);
     } catch (err: any) {
       setMessage("Failed: " + (err.response?.data || err.message));
     }
@@ -93,6 +145,9 @@ const ManageUsers: React.FC = () => {
         {message && <p className="mb-4 text-green-500">{message}</p>}
         {showForm && (
           <form onSubmit={handleSubmit} className="mb-6">
+            <h3 className="text-lg font-semibold mb-2">
+              {editingId ? "Edit User" : "Add User"}
+            </h3>
             <div className="grid md:grid-cols-2 gap-4">
               <input
                 name="username"
@@ -100,7 +155,8 @@ const ManageUsers: React.FC = () => {
                 value={newUser.username}
                 onChange={handleInput}
                 required
-                className="border p-2"
+                disabled={!!editingId}
+                className="border p-2 bg-gray-100"
               />
               <input
                 name="password"
@@ -108,7 +164,6 @@ const ManageUsers: React.FC = () => {
                 placeholder="password"
                 value={newUser.password}
                 onChange={handleInput}
-                required
                 className="border p-2"
               />
             </div>
@@ -144,26 +199,32 @@ const ManageUsers: React.FC = () => {
                   onChange={handleInput}
                   className="border p-2"
                 >
-                  <option value="B1">B1</option>
-                  <option value="B2">B2</option>
-                  <option value="B3">B3</option>
-                  <option value="B4">B4</option>
-                  <option value="B5">B5</option>
-                  <option value="JSS1">JSS1</option>
-                  <option value="JSS2">JSS2</option>
-                  <option value="JSS3">JSS3</option>
-                  <option value="SS1">SS1</option>
-                  <option value="SS2">SS2</option>
-                  <option value="SS3">SS3</option>
+                  {classChoices.map((cls) => (
+                    <option key={cls.value} value={cls.value}>
+                      {cls.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}
-            <button
-              type="submit"
-              className="mt-2 px-4 py-2 bg-green-600 text-white rounded"
-            >
-              Create
-            </button>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-green-600 text-white rounded"
+              >
+                {editingId ? "Update" : "Create"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingId(null);
+                }}
+                className="px-4 py-2 bg-gray-400 text-white rounded"
+              >
+                Cancel
+              </button>
+            </div>
           </form>
         )}
         <table className="w-full table-auto">
@@ -174,6 +235,7 @@ const ManageUsers: React.FC = () => {
               <th className="p-2">Role</th>
               <th className="p-2">Dept</th>
               <th className="p-2">Class</th>
+              <th className="p-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -190,6 +252,36 @@ const ManageUsers: React.FC = () => {
                 <td className="p-2 capitalize">{p.role}</td>
                 <td className="p-2">{p.department}</td>
                 <td className="p-2">{p.student_class}</td>
+                <td className="p-2">
+                  <button
+                    onClick={() => handleEdit(p)}
+                    className="text-blue-600 hover:underline mr-2"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(p)}
+                    className="text-red-600 hover:underline mr-2"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const pwd = window.prompt("Enter new password:");
+                      if (pwd) {
+                        try {
+                          await api.post(`/profiles/${p.id}/set_password/`, { password: pwd });
+                          setMessage("Password updated");
+                        } catch (err: any) {
+                          setMessage("Password change failed: " + (err.response?.data || err.message));
+                        }
+                      }
+                    }}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Reset password
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

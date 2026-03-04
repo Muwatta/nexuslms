@@ -36,9 +36,9 @@ export const fetchUserProfile = async (): Promise<UserData | null> => {
 };
 
 /**
- * Get the appropriate dashboard route based on user role
+ * Get the appropriate dashboard route based on user role and department
  */
-export const getDashboardRouteByRole = (role: string): string => {
+export const getDashboardRouteByRole = (role: string, department?: string): string => {
   const adminRoles = ["admin", "school_admin", "super_admin"];
   const parentRole = "parent";
   const studentRoles = ["student", "teacher", "instructor"];
@@ -50,7 +50,14 @@ export const getDashboardRouteByRole = (role: string): string => {
     return "/parent-portal";
   }
   if (studentRoles.includes(role)) {
-    return "/dashboard";
+    // Route based on department for students
+    if (department === "arabic") {
+      return "/arabic-dashboard";
+    } else if (department === "programming") {
+      return "/programming-dashboard";
+    } else {
+      return "/western-dashboard";
+    }
   }
 
   // Default to dashboard
@@ -98,7 +105,7 @@ export const handleLoginSuccess = async (
   const userProfile = await fetchUserProfile();
   if (userProfile) {
     storeUserData(userProfile);
-    const route = getDashboardRouteByRole(userProfile.role);
+    const route = getDashboardRouteByRole(userProfile.role, userProfile.department);
     return route;
   }
 

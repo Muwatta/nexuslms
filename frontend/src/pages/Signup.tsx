@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import api from "../api";
 
@@ -9,29 +9,45 @@ const Signup: React.FC = () => {
     email: "",
     role: "student",
     department: "western",
-    student_class: "B1",
+    student_class: "JSS1",
     bio: "",
     phone: "",
     parent_email: "",
   });
   const [message, setMessage] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [classChoices, setClassChoices] = useState<
+    { value: string; label: string }[]
+  >([]);
 
-  const classChoices = [
-    "B1",
-    "B2",
-    "B3",
-    "B4",
-    "B5",
-    "JSS1",
-    "JSS2",
-    "JSS3",
-    "SS1",
-    "SS2",
-    "SS3",
-    "idaady",
-    "thanawi",
-  ];
+  // Fetch class choices based on selected department
+  useEffect(() => {
+    const fetchClassChoices = async () => {
+      try {
+        const response = await api.get(
+          `/class-choices/?department=${formData.department}`,
+        );
+        setClassChoices(response.data.classes);
+        // Set first class as default if current selection is invalid
+        if (
+          response.data.classes.length > 0 &&
+          !response.data.classes.find(
+            (c: { value: string; label: string }) =>
+              c.value === formData.student_class,
+          )
+        ) {
+          setFormData((prev) => ({
+            ...prev,
+            student_class: response.data.classes[0].value,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch class choices:", err);
+      }
+    };
+
+    fetchClassChoices();
+  }, [formData.department]);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -70,7 +86,7 @@ const Signup: React.FC = () => {
         email: "",
         role: "student",
         department: "western",
-        student_class: "B1",
+        student_class: "JSS1",
         bio: "",
         phone: "",
         parent_email: "",
@@ -214,8 +230,8 @@ const Signup: React.FC = () => {
                       onChange={handleInputChange}
                     >
                       {classChoices.map((cls) => (
-                        <option key={cls} value={cls}>
-                          {cls}
+                        <option key={cls.value} value={cls.value}>
+                          {cls.label}
                         </option>
                       ))}
                     </select>

@@ -9,6 +9,17 @@ interface SystemStats {
   totalEnrollments: number;
   totalAssignments: number;
   completionRate: number;
+  totalClasses: number;
+  avgStudentsPerCourse: number;
+  avgAssignmentsPerCourse: number;
+  studentInstructorRatio: string;
+  totalDebtors: number;
+  totalNonDebtors: number;
+  departmentCounts: {
+    western: number;
+    arabic: number;
+    programming: number;
+  };
 }
 
 const AdminDashboard: React.FC = () => {
@@ -19,6 +30,17 @@ const AdminDashboard: React.FC = () => {
     totalEnrollments: 0,
     totalAssignments: 0,
     completionRate: 0,
+    totalClasses: 0,
+    avgStudentsPerCourse: 0,
+    avgAssignmentsPerCourse: 0,
+    studentInstructorRatio: "0:0",
+    totalDebtors: 0,
+    totalNonDebtors: 0,
+    departmentCounts: {
+      western: 0,
+      arabic: 0,
+      programming: 0,
+    },
   });
   const [profiles, setProfiles] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
@@ -59,12 +81,58 @@ const AdminDashboard: React.FC = () => {
         (p) => p.role === "instructor" || p.role === "teacher",
       );
 
+      // Department counts
+      // department counts with explicit type to satisfy TS
+      type Department = "western" | "arabic" | "programming";
+      const deptCounts: Record<Department, number> = {
+        western: 0,
+        arabic: 0,
+        programming: 0,
+      };
+      allProfiles.forEach((p) => {
+        const dept = p.department as Department;
+        if (dept && deptCounts[dept] !== undefined) {
+          deptCounts[dept] += 1;
+        }
+      });
+
       // Simple completion rate: enrollments / (students * courses) if > 0
       const maxEnrollments = students.length * allCourses.length || 1;
       const completionRate =
         maxEnrollments > 0
           ? Math.round((enrollments.length / maxEnrollments) * 100)
           : 0;
+
+      // Averages and ratios
+      const avgStudentsPerCourse =
+        allCourses.length > 0
+          ? Math.round(students.length / allCourses.length)
+          : 0;
+      const avgAssignmentsPerCourse =
+        allCourses.length > 0
+          ? Math.round(assignments.length / allCourses.length)
+          : 0;
+      const studentInstructorRatio =
+        instructors.length > 0
+          ? `${students.length}:${instructors.length}`
+          : `${students.length}:0`;
+      const totalClasses = new Set(
+        students.map((s) => s.student_class).filter(Boolean),
+      ).size;
+
+      // Debtors calculation
+      const debtorSet = new Set<number>();
+      const paymentsRes = await api.get("/payments/");
+      const payments = Array.isArray(paymentsRes.data) ? paymentsRes.data : [];
+      payments
+        .filter((p: any) => p.status !== "successful")
+        .forEach((p: any) => {
+          if (p.student && p.student.id) {
+            debtorSet.add(p.student.id);
+          }
+        });
+      const totalDebtors = debtorSet.size;
+      const totalNonDebtors = students.length - totalDebtors;
 
       setStats({
         totalStudents: students.length,
@@ -73,6 +141,13 @@ const AdminDashboard: React.FC = () => {
         totalEnrollments: enrollments.length,
         totalAssignments: assignments.length,
         completionRate,
+        totalClasses,
+        avgStudentsPerCourse,
+        avgAssignmentsPerCourse,
+        studentInstructorRatio,
+        totalDebtors,
+        totalNonDebtors,
+        departmentCounts: deptCounts,
       });
     } catch (err) {
       console.error("Failed to fetch admin data:", err);
@@ -106,6 +181,23 @@ const AdminDashboard: React.FC = () => {
           <p className="text-gray-500">Loading...</p>
         ) : (
           <>
+            {/* Quick action links */}
+            <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Users", to: "/manage-users" },
+                { label: "Courses", to: "/courses" },
+                { label: "Assignments", to: "/assignments" },
+                { label: "Enrollments", to: "/enrollments" },
+              ].map((link) => (
+                <a
+                  key={link.to}
+                  href={link.to}
+                  className="block text-center p-4 bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
             {/* Stats Cards */}
             <div className="grid md:grid-cols-6 gap-4 mb-8">
               <motion.div
@@ -146,6 +238,18 @@ const AdminDashboard: React.FC = () => {
 
               <motion.div
                 whileHover={{ scale: 1.05 }}
+                className="bg-teal-100 dark:bg-teal-900 p-4 rounded-lg"
+              >
+                <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                  Classes
+                </div>
+                <div className="text-3xl font-bold text-teal-600 dark:text-teal-300">
+                  {stats.totalClasses}
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.05 }}
                 className="bg-yellow-100 dark:bg-yellow-900 p-4 rounded-lg"
               >
                 <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
@@ -177,6 +281,66 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-300">
                   {stats.completionRate}%
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="bg-teal-100 dark:bg-teal-900 p-4 rounded-lg"
+              >
+                <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                  Avg Students / Course
+                </div>
+                <div className="text-3xl font-bold text-teal-600 dark:text-teal-300">
+                  {stats.avgStudentsPerCourse}
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="bg-pink-100 dark:bg-pink-900 p-4 rounded-lg"
+              >
+                <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                  Avg Assignments / Course
+                </div>
+                <div className="text-3xl font-bold text-pink-600 dark:text-pink-300">
+                  {stats.avgAssignmentsPerCourse}
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg"
+              >
+                <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                  Student:Instructor Ratio
+                </div>
+                <div className="text-3xl font-bold text-gray-600 dark:text-gray-300">
+                  {stats.studentInstructorRatio}
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="bg-red-100 dark:bg-red-900 p-4 rounded-lg"
+              >
+                <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                  Debtors
+                </div>
+                <div className="text-3xl font-bold text-red-600 dark:text-red-300">
+                  {stats.totalDebtors}
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="bg-green-100 dark:bg-green-900 p-4 rounded-lg"
+              >
+                <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">
+                  Non-Debtors
+                </div>
+                <div className="text-3xl font-bold text-green-600 dark:text-green-300">
+                  {stats.totalNonDebtors}
                 </div>
               </motion.div>
             </div>

@@ -4,6 +4,9 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
+import ArabicDashboard from "./pages/ArabicDashboard";
+import WesternDashboard from "./pages/WesternDashboard";
+import ProgrammingDashboard from "./pages/ProgrammingDashboard";
 import Courses from "./pages/Courses";
 import Enrollments from "./pages/Enrollments";
 import Assignments from "./pages/Assignments";
@@ -35,7 +38,7 @@ const HomeRouter: React.FC = () => {
   if (token) {
     const userData = getUserData();
     if (userData) {
-      const dashboardRoute = getDashboardRouteByRole(userData.role);
+      const dashboardRoute = getDashboardRouteByRole(userData.role, userData.department);
       return <Navigate to={dashboardRoute} replace />;
     }
     return <Navigate to="/dashboard" replace />;
@@ -68,6 +71,30 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/western-dashboard"
+              element={
+                <ProtectedRoute>
+                  <WesternDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/arabic-dashboard"
+              element={
+                <ProtectedRoute>
+                  <ArabicDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/programming-dashboard"
+              element={
+                <ProtectedRoute>
+                  <ProgrammingDashboard />
                 </ProtectedRoute>
               }
             />

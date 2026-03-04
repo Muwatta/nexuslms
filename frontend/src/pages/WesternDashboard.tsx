@@ -4,12 +4,14 @@ import StatsCard from "../components/StatsCard";
 import { WHATSAPP_NUMBER, formatWhatsAppLink } from "../config/contact";
 import { motion } from "framer-motion";
 import PaymentSection from "../components/PaymentSection";
+import { getUserData } from "../utils/authUtils";
 
 const WesternDashboard: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const userData = getUserData();
 
   useEffect(() => {
     Promise.all([
@@ -31,6 +33,14 @@ const WesternDashboard: React.FC = () => {
     ]).finally(() => setLoading(false));
   }, []);
 
+  // Function to format name for greeting
+  const getGreetingName = (): string => {
+    if (profile?.user?.first_name) {
+      return profile.user.first_name;
+    }
+    return profile?.user?.username || userData?.username || "Student";
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -40,22 +50,20 @@ const WesternDashboard: React.FC = () => {
     >
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-          Welcome to Western School
+          Welcome {getGreetingName()} to Western School
         </h1>
         {profile && (
           <>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
               {profile.role === "student" ? (
                 <>
-                  Student: {profile.user?.username} | Class:{" "}
-                  {profile.student_class}
+                  Class: {profile.student_class}
                 </>
               ) : profile.role === "parent" ? (
-                <>Parent: {profile.user?.username}</>
+                <>Parent</>
               ) : (
                 <>
                   {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
-                  : {profile.user?.username}
                 </>
               )}
             </p>

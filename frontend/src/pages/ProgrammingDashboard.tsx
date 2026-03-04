@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../api";
 import StatsCard from "../components/StatsCard";
 import PaymentSection from "../components/PaymentSection";
+import { getUserData } from "../utils/authUtils";
 
 const ProgrammingDashboard: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -9,6 +10,7 @@ const ProgrammingDashboard: React.FC = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const userData = getUserData();
 
   useEffect(() => {
     Promise.all([
@@ -34,6 +36,14 @@ const ProgrammingDashboard: React.FC = () => {
     ]).finally(() => setLoading(false));
   }, []);
 
+  // Function to format name for greeting
+  const getGreetingName = (): string => {
+    if (profile?.user?.first_name) {
+      return profile.user.first_name;
+    }
+    return profile?.user?.username || userData?.username || "Developer";
+  };
+
   return (
     <div className="p-6 bg-gradient-to-b from-slate-900 to-slate-800 dark:from-black min-h-screen text-white">
       {/* Header with Terminal Style */}
@@ -41,15 +51,14 @@ const ProgrammingDashboard: React.FC = () => {
         <div className="flex items-center gap-3 mb-2">
           <span className="text-3xl">💻</span>
           <h1 className="text-4xl font-bold text-cyan-400">
-            PROGRAMMING ACADEMY
+            Welcome to world of developers, {getGreetingName()}!
           </h1>
         </div>
         <p className="text-gray-400 text-lg">&gt; Build. Code. Innovate.</p>
         {profile && (
           <>
             <p className="text-gray-500 mt-2">
-              user@nexuslms ~ $ {profile.user?.username} | level:{" "}
-              {profile.student_class}
+              level: {profile.student_class}
             </p>
             <p className="text-sm text-gray-400 mt-1">
               Navigate using the menu to explore courses, projects, and badges.

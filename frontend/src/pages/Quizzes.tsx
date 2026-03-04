@@ -119,7 +119,7 @@ const Quizzes: React.FC = () => {
                       {selectedIdx === correctIdx ? "✅" : "❌"}
                     </p>
                     {!(selectedIdx === correctIdx) && (
-                      <p>Correct answer: {q.choices[correctIdx]}</p>
+                      <p>Correct answer: {q.choices[correctIdx ?? 0]}</p>
                     )}
                   </div>
                 );
