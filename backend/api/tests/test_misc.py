@@ -7,8 +7,6 @@ import io, csv
 
 User = get_user_model()
 
-# Create your tests here.
-
 
 class AssignmentUploadTests(TestCase):
     def setUp(self):
