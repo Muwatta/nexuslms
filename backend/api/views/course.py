@@ -13,6 +13,17 @@ class CourseViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
     filterset_class = CourseFilter
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if hasattr(user, 'role') and user.role == 'instructor':
+            try:
+                user_profile = user.profile
+                return qs.filter(instructor=user_profile)
+            except:
+                return qs.none()
+        return qs
+
 class PracticeQuestionViewSet(ModelViewSet):
     queryset = PracticeQuestion.objects.all()
     serializer_class = PracticeQuestionSerializer

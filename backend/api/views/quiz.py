@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 
-from api.models import Quiz, QuizSubmission, Question
+from api.models import Quiz, QuizSubmission, Question, Course
 from api.serializers import QuizSerializer, QuizSubmissionSerializer, QuestionSerializer
 from api.filters import QuizFilter
 
@@ -42,6 +42,20 @@ class QuizSubmissionViewSet(ModelViewSet):
     queryset = QuizSubmission.objects.all()
     serializer_class = QuizSubmissionSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if hasattr(user, 'role') and user.role == 'instructor':
+            try:
+                user_profile = user.profile
+                # Get quizzes from courses taught by this instructor
+                instructor_course_ids = Course.objects.filter(instructor=user_profile).values_list('id', flat=True)
+                quiz_ids = Quiz.objects.filter(course_id__in=instructor_course_ids).values_list('id', flat=True)
+                return qs.filter(quiz_id__in=quiz_ids)
+            except:
+                return qs.none()
+        return qs
 
     def perform_create(self, serializer):
         user_profile = self.request.user.profile

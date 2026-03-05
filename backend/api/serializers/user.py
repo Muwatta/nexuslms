@@ -6,6 +6,8 @@ User = get_user_model()
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
     role = serializers.ChoiceField(
         choices=[
             ("student", "Student"),
@@ -15,6 +17,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             ("admin", "Admin"),
         ],
         default="student",
+    )
+    instructor_type = serializers.ChoiceField(
+        choices=[
+            ("subject", "Subject Instructor"),
+            ("class", "Class Instructor"),
+        ],
+        required=False,
+        allow_blank=True,
     )
     department = serializers.ChoiceField(
         choices=[
@@ -58,7 +68,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "username",
             "email",
             "password",
+            "first_name",
+            "last_name",
             "role",
+            "instructor_type",
             "department",
             "student_class",
             "bio",
@@ -68,13 +81,21 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         role = validated_data.pop("role", "student")
+        instructor_type = validated_data.pop("instructor_type", None)
         department = validated_data.pop("department", "western")
         student_class = validated_data.pop("student_class", None)
         bio = validated_data.pop("bio", "")
         phone = validated_data.pop("phone", "")
         parent_email = validated_data.pop("parent_email", "")
 
+        # pop out name fields since create_user doesn't expect them
+        first_name = validated_data.pop('first_name', '')
+        last_name = validated_data.pop('last_name', '')
         user = User.objects.create_user(**validated_data)
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
         user.role = role
         user.save()
 
@@ -82,6 +103,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         profile = getattr(user, "profile", None)
         if profile:
             profile.role = role
+            profile.instructor_type = instructor_type or None
             profile.department = department
             profile.student_class = student_class or None
             profile.bio = bio

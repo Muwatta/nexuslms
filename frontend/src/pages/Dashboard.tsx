@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../api";
 import WesternDashboard from "./WesternDashboard";
 import ArabicDashboard from "./ArabicDashboard";
-import ProgrammingDashboard from "./ProgrammingDashboard";
+import DigitalDashboard from "./DigitalDashboard";
 
 const Dashboard: React.FC = () => {
   const [department, setDepartment] = useState<string | null>(null);
@@ -38,7 +38,8 @@ const Dashboard: React.FC = () => {
     case "arabic":
       return <ArabicDashboard />;
     case "programming":
-      return <ProgrammingDashboard />;
+    case "digital":
+      return <DigitalDashboard />;
     case "western":
     default:
       return <WesternDashboard />;

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api";
 import StatsCard from "../components/StatsCard";
 import { WHATSAPP_NUMBER, formatWhatsAppLink } from "../config/contact";
@@ -12,6 +13,7 @@ const WesternDashboard: React.FC = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const userData = getUserData();
+  const navigate = useNavigate();
 
   useEffect(() => {
     Promise.all([
@@ -32,6 +34,33 @@ const WesternDashboard: React.FC = () => {
         .catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);
+
+  // Access control check
+  useEffect(() => {
+    if (profile && userData) {
+      const userRole = profile.role;
+      const userDepartment = profile.department;
+
+      // Admins can access all dashboards
+      if (userRole === "admin") {
+        return;
+      }
+
+      // Instructors and students can only access their department's dashboard
+      if (
+        (userRole === "instructor" || userRole === "student") &&
+        userDepartment !== "western"
+      ) {
+        navigate("/unauthorized");
+        return;
+      }
+
+      // If role is not recognized, redirect
+      if (!["admin", "instructor", "student"].includes(userRole)) {
+        navigate("/unauthorized");
+      }
+    }
+  }, [profile, userData, navigate]);
 
   // Function to format name for greeting
   const getGreetingName = (): string => {
@@ -56,9 +85,7 @@ const WesternDashboard: React.FC = () => {
           <>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
               {profile.role === "student" ? (
-                <>
-                  Class: {profile.student_class}
-                </>
+                <>Class: {profile.student_class}</>
               ) : profile.role === "parent" ? (
                 <>Parent</>
               ) : (

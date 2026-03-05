@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { WHATSAPP_NUMBER, formatWhatsAppLink } from "../config/contact";
 import { clearUserData } from "../utils/authUtils";
+import ProfileDropdown from "./ProfileDropdown";
 
 interface NavbarProps {
   toggleSidebar?: () => void;
@@ -52,12 +53,7 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
                 >
                   ☰
                 </button>
-                <button
-                  onClick={handleLogout}
-                  className="text-white hover:bg-red-600 dark:hover:bg-red-700 px-3 py-2 rounded-md text-sm font-medium transition ml-2"
-                >
-                  🚪 Logout
-                </button>
+                <ProfileDropdown />
               </>
             ) : (
               <>

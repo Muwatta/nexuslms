@@ -13,6 +13,11 @@ class Profile(models.Model):
         ("super_admin", "Super Admin"),
     ]
 
+    INSTRUCTOR_TYPE_CHOICES = [
+        ("subject", "Subject Instructor"),
+        ("class", "Class Instructor"),
+    ]
+
     DEPARTMENT_CHOICES = [
         ("western", "Western School"),
         ("arabic", "Arabic School"),
@@ -60,6 +65,13 @@ class Profile(models.Model):
         blank=True
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="student")
+    instructor_type = models.CharField(
+        max_length=20,
+        choices=INSTRUCTOR_TYPE_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Only applicable if role is instructor"
+    )
     bio = models.TextField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     parent_email = models.EmailField(blank=True)

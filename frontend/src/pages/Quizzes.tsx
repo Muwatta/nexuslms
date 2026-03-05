@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api from "../api";
+import BackButton from "../components/BackButton";
 
 interface Quiz {
   id: number;
@@ -72,6 +73,9 @@ const Quizzes: React.FC = () => {
   if (selected)
     return (
       <div className="p-6">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <h2 className="text-2xl font-bold">{selected.title}</h2>
         {timeLeft != null && (
           <p className="text-red-600 font-bold">
@@ -132,6 +136,9 @@ const Quizzes: React.FC = () => {
 
   return (
     <div className="p-6">
+      <div className="mb-4">
+        <BackButton />
+      </div>
       <h2 className="text-2xl font-bold">Available Quizzes</h2>
       <ul className="mt-4 space-y-2">
         {quizzes.map((q) => (

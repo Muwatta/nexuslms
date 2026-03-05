@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api from "../api";
+import BackButton from "../components/BackButton";
 
 const Payments: React.FC = () => {
   const [payments, setPayments] = useState<any[]>([]);
@@ -22,6 +23,9 @@ const Payments: React.FC = () => {
 
   return (
     <div>
+      <div className="mb-4">
+        <BackButton />
+      </div>
       <h2 className="text-2xl font-bold">Payments</h2>
       <button
         onClick={handlePay}

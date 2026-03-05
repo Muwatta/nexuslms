@@ -181,21 +181,86 @@ const AdminDashboard: React.FC = () => {
           <p className="text-gray-500">Loading...</p>
         ) : (
           <>
+            {/* School Dashboard Access */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                🏫 School Dashboards
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                  {
+                    name: "Western School",
+                    route: "/western-dashboard",
+                    icon: "🏛️",
+                    color: "blue",
+                    description: "Western Education System",
+                    stats: stats.departmentCounts.western,
+                  },
+                  {
+                    name: "Arabic School",
+                    route: "/arabic-dashboard",
+                    icon: "🕌",
+                    color: "green",
+                    description: "Arabic Language & Culture",
+                    stats: stats.departmentCounts.arabic,
+                  },
+                  {
+                    name: "Digital School",
+                    route: "/digital-dashboard",
+                    icon: "💻",
+                    color: "purple",
+                    description: "Programming & Technology",
+                    stats: stats.departmentCounts.programming,
+                  },
+                ].map((school) => (
+                  <motion.div
+                    key={school.name}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={`bg-${school.color}-50 dark:bg-${school.color}-900/20 border border-${school.color}-200 dark:border-${school.color}-800 rounded-lg p-6 cursor-pointer`}
+                    onClick={() => (window.location.href = school.route)}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`text-4xl`}>{school.icon}</div>
+                      <div
+                        className={`text-2xl font-bold text-${school.color}-600 dark:text-${school.color}-400`}
+                      >
+                        {school.stats}
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                      {school.name}
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      {school.description}
+                    </p>
+                    <div
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-${school.color}-100 dark:bg-${school.color}-900 text-${school.color}-800 dark:text-${school.color}-200`}
+                    >
+                      Access Dashboard →
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+
             {/* Quick action links */}
             <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Users", to: "/manage-users" },
-                { label: "Courses", to: "/courses" },
-                { label: "Assignments", to: "/assignments" },
-                { label: "Enrollments", to: "/enrollments" },
+                { label: "👥 Manage Users", to: "/manage-users" },
+                { label: "📚 All Courses", to: "/courses" },
+                { label: "📝 Assignments", to: "/assignments" },
+                { label: "📊 Analytics", to: "/analytics" },
               ].map((link) => (
-                <a
+                <motion.a
                   key={link.to}
                   href={link.to}
-                  className="block text-center p-4 bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="block text-center p-4 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 >
                   {link.label}
-                </a>
+                </motion.a>
               ))}
             </div>
             {/* Stats Cards */}

@@ -39,6 +39,7 @@ class ProfileInline(admin.StackedInline):
     verbose_name_plural = "Profile Details"
     fields = (
         "role",
+        "instructor_type",
         "department", 
         "student_class",
         "student_id",
@@ -62,6 +63,7 @@ class CustomUserAdmin(BaseUserAdmin):
         "first_name",
         "last_name",
         "get_role",
+        "get_instructor_type",
         "get_department",
         "get_student_id",
         "is_staff",
@@ -73,6 +75,7 @@ class CustomUserAdmin(BaseUserAdmin):
         "is_staff",
         "is_active",
         "profile__role",
+        "profile__instructor_type",
         "profile__department",
         "groups__name",
     )
@@ -195,6 +198,17 @@ class CustomUserAdmin(BaseUserAdmin):
             return "-"
     get_student_id.short_description = "Student ID"
     get_student_id.admin_order_field = "profile__student_id"
+    
+    def get_instructor_type(self, obj):
+        try:
+            profile = obj.profile
+            if profile.role == "instructor" and profile.instructor_type:
+                return profile.get_instructor_type_display()
+            return "-"
+        except Profile.DoesNotExist:
+            return "-"
+    get_instructor_type.short_description = "Instructor Type"
+    get_instructor_type.admin_order_field = "profile__instructor_type"
     
     def get_department(self, obj):
         try:

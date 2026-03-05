@@ -66,7 +66,17 @@ class ProfileViewSet(ModelViewSet):
         user_role = getattr(self.request.user, 'role', None)
         if user_role != 'admin' and not self.request.user.is_superuser:
             raise PermissionDenied('Only admins can modify profiles')
-        serializer.save()
+        instance = serializer.save()
+        # if first/last name provided in payload, update related user object
+        user_fields = {}
+        if 'first_name' in self.request.data:
+            user_fields['first_name'] = self.request.data.get('first_name')
+        if 'last_name' in self.request.data:
+            user_fields['last_name'] = self.request.data.get('last_name')
+        if user_fields:
+            for attr, val in user_fields.items():
+                setattr(instance.user, attr, val)
+            instance.user.save()
 
     def perform_destroy(self, instance):
         user_role = getattr(self.request.user, 'role', None)

@@ -74,7 +74,18 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
         className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 z-40 transform transition-transform duration-200
           ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
-        <nav className="mt-16 flex flex-col space-y-1 px-4">
+        <div className="mt-16 px-4 py-4 border-b dark:border-gray-700">
+          <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            {currentRole && (
+              <span>
+                Hi,{" "}
+                {JSON.parse(localStorage.getItem("user") || "{}").firstName ||
+                  JSON.parse(localStorage.getItem("user") || "{}").username}
+              </span>
+            )}
+          </p>
+        </div>
+        <nav className="flex flex-col space-y-1 px-4">
           {visibleLinks.map((item) => (
             <Link
               key={item.to}

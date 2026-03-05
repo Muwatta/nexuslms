@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api";
 import StatsCard from "../components/StatsCard";
 import PaymentSection from "../components/PaymentSection";
@@ -11,6 +12,7 @@ const ProgrammingDashboard: React.FC = () => {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const userData = getUserData();
+  const navigate = useNavigate();
 
   useEffect(() => {
     Promise.all([
@@ -36,6 +38,33 @@ const ProgrammingDashboard: React.FC = () => {
     ]).finally(() => setLoading(false));
   }, []);
 
+  // Access control check
+  useEffect(() => {
+    if (profile && userData) {
+      const userRole = profile.role;
+      const userDepartment = profile.department;
+
+      // Admins can access all dashboards
+      if (userRole === "admin") {
+        return;
+      }
+
+      // Instructors and students can only access their department's dashboard
+      if (
+        (userRole === "instructor" || userRole === "student") &&
+        userDepartment !== "programming"
+      ) {
+        navigate("/unauthorized");
+        return;
+      }
+
+      // If role is not recognized, redirect
+      if (!["admin", "instructor", "student"].includes(userRole)) {
+        navigate("/unauthorized");
+      }
+    }
+  }, [profile, userData, navigate]);
+
   // Function to format name for greeting
   const getGreetingName = (): string => {
     if (profile?.user?.first_name) {
@@ -57,9 +86,7 @@ const ProgrammingDashboard: React.FC = () => {
         <p className="text-gray-400 text-lg">&gt; Build. Code. Innovate.</p>
         {profile && (
           <>
-            <p className="text-gray-500 mt-2">
-              level: {profile.student_class}
-            </p>
+            <p className="text-gray-500 mt-2">level: {profile.student_class}</p>
             <p className="text-sm text-gray-400 mt-1">
               Navigate using the menu to explore courses, projects, and badges.
               Dark mode toggle is available at the top.

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../api";
 import { motion } from "framer-motion";
+import BackButton from "../components/BackButton";
 
 interface Profile {
   id: number;
@@ -197,6 +198,9 @@ const Assignments: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="p-6"
     >
+      <div className="mb-4">
+        <BackButton />
+      </div>
       <h2 className="text-2xl font-bold mb-4">Assignments</h2>
       <div className="grid md:grid-cols-3 gap-6">
         <div>

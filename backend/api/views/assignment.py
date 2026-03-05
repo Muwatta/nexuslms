@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from api.models import Assignment, AssignmentSubmission
+from api.models import Assignment, AssignmentSubmission, Course
 from api.serializers import (
     AssignmentSerializer,
     AssignmentSubmissionSerializer,
@@ -126,8 +126,17 @@ class AssignmentSubmissionViewSet(ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if user.role in ["teacher", "instructor", "admin"]:
+        if user.role in ["teacher", "admin"]:
             return qs
+        elif user.role == "instructor":
+            try:
+                user_profile = user.profile
+                # Get assignments from courses taught by this instructor
+                instructor_course_ids = Course.objects.filter(instructor=user_profile).values_list('id', flat=True)
+                assignment_ids = Assignment.objects.filter(course_id__in=instructor_course_ids).values_list('id', flat=True)
+                return qs.filter(assignment_id__in=assignment_ids)
+            except:
+                return qs.none()
         return qs.filter(published=True)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
