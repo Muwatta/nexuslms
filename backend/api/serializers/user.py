@@ -47,6 +47,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(required=False, allow_blank=True)
     parent_email = serializers.EmailField(required=False, allow_blank=True)
 
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        return value
+
     class Meta:
         model = User
         fields = (

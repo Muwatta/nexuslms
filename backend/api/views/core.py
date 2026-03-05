@@ -38,8 +38,8 @@ class ProfileViewSet(ModelViewSet):
         except Profile.DoesNotExist:
             user_profile = None
         print(f"[DEBUG] ProfileViewSet.get_queryset user={user} role={user_role} has_profile={user_profile is not None}")
-        # admin, teachers and instructors see profiles within their department
-        if user_role in ['admin', 'teacher', 'instructor'] and user_profile:
+        # admin sees all profiles; teachers and instructors see profiles within their department
+        if user_role in ['teacher', 'instructor'] and user_profile:
             return qs.filter(department=user_profile.department)
         # parents and students only see their own profile
         if user_role in ['parent', 'student']:
