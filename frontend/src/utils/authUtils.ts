@@ -1,7 +1,3 @@
-/**
- * Utility functions for authentication and role-based routing
- */
-
 import api from "../api";
 
 export interface UserData {
@@ -15,15 +11,11 @@ export interface UserData {
   lastName?: string;
 }
 
-/**
- * Fetch user profile after successful login
- */
 export const fetchUserProfile = async (): Promise<UserData | null> => {
   try {
     const response = await api.get("/profiles/");
     if (response.data && response.data.length > 0) {
       const profile = response.data[0];
-      // `depth=1` ensures user is nested, otherwise this may just be an ID
       const userObj = profile.user || profile.user_details || {};
       return {
         id: profile.id,
@@ -43,52 +35,38 @@ export const fetchUserProfile = async (): Promise<UserData | null> => {
   }
 };
 
-/**
- * Get the appropriate dashboard route based on user role and department
- */
+
 export const getDashboardRouteByRole = (
   role: string,
   department?: string,
   instructorType?: string,
 ): string => {
-  const adminRoles = ["admin", "school_admin", "super_admin"];
-
-  // Admins get access to all dashboards - route to admin overview or default school
-  if (adminRoles.includes(role)) {
-    return "/admin-dashboard"; // Main admin dashboard
+  // Admins go to main admin dashboard
+  if (["admin", "super_admin"].includes(role)) {
+    return "/admin-dashboard";
   }
 
-  // Instructors route based on instructor type
+  // School admins go to their department dashboard
+  if (role === "school_admin") {
+    if (department === "arabic") return "/arabic-dashboard";
+    if (department === "programming") return "/digital-dashboard";
+    return "/western-dashboard"; // default
+  }
+
+  // Instructors go to their department dashboard
   if (role === "instructor") {
-    if (instructorType === "subject") {
-      return "/subject-instructor-dashboard";
-    } else if (instructorType === "class") {
-      return "/class-instructor-dashboard";
-    } else {
-      return "/instructor-dashboard"; // Generic instructor dashboard that checks type
-    }
+    if (department === "arabic") return "/arabic-dashboard";
+    if (department === "programming") return "/digital-dashboard";
+    return "/western-dashboard";
   }
 
-  // Students route based on department
-  if (role === "student") {
-    if (department === "arabic") {
-      return "/arabic-dashboard";
-    } else if (department === "programming") {
-      return "/digital-dashboard"; // Changed from programming to digital
-    } else {
-      return "/western-dashboard";
-    }
+  // Students and parents get unified personal dashboard
+  if (role === "student" || role === "parent") {
+    return "/student-dashboard";
   }
 
-  // Parents get parent portal
-  if (role === "parent") {
-    return "/parent-portal";
-  }
-
-  // Default fallback
   return "/dashboard";
 };
-
 /**
  * Store user data in localStorage
  */

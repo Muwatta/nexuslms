@@ -62,7 +62,7 @@ const ArabicDashboard: React.FC = () => {
       const userDepartment = profile.department;
 
       // Admins can access all dashboards
-      if (userRole === "admin") {
+      if (userRole === "admin" || userRole === "school_admin" || userRole === "super_admin") {
         return;
       }
 
@@ -76,7 +76,7 @@ const ArabicDashboard: React.FC = () => {
       }
 
       // If role is not recognized, redirect
-      if (!["admin", "instructor", "student"].includes(userRole)) {
+      if (!["admin", "school_admin", "super_admin", "instructor", "student"].includes(userRole)) {
         navigate("/unauthorized");
       }
     }
@@ -104,7 +104,7 @@ const ArabicDashboard: React.FC = () => {
         <h1 className="text-4xl font-bold text-green-900 dark:text-green-300">
           {isInstructor
             ? `مرحبا ${getGreetingName()} - لوحة المعلم`
-            : `مرحبا ${getGreetingName()} إلى مدرسة الموطأ`}
+            : `مرحبا ${getGreetingName()} إلى أكاديمية الموطأ`}
         </h1>
         <p className="text-lg text-green-700 dark:text-green-400">
           {isInstructor

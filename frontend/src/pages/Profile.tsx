@@ -43,21 +43,40 @@ const Profile: React.FC = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await api.get("/profiles/");
-      if (response.data && response.data.length > 0) {
-        const userProfile = response.data[0];
-        setProfile(userProfile);
-        setFormData({
-          first_name: userProfile.user?.first_name || "",
-          last_name: userProfile.user?.last_name || "",
-          email: userProfile.user?.email || "",
-          phone: userProfile.phone || "",
-          address: userProfile.address || "",
-        });
-      }
+      // Use the /me endpoint instead of /profiles/
+      const response = await api.get("/profiles/me/");
+      const userProfile = response.data;
+      setProfile(userProfile);
+      setFormData({
+        first_name: userProfile.user?.first_name || "",
+        last_name: userProfile.user?.last_name || "",
+        email: userProfile.user?.email || "",
+        phone: userProfile.phone || "",
+        address: userProfile.address || "",
+      });
     } catch (error) {
       console.error("Failed to fetch profile:", error);
-      setMessage("Failed to load profile data");
+      // Fallback to /profiles/ if /me/ fails
+      try {
+        const response = await api.get("/profiles/");
+        if (
+          response.data &&
+          (response.data.length > 0 || response.data.results?.length > 0)
+        ) {
+          const profiles = response.data.results || response.data;
+          const userProfile = profiles[0];
+          setProfile(userProfile);
+          setFormData({
+            first_name: userProfile.user?.first_name || "",
+            last_name: userProfile.user?.last_name || "",
+            email: userProfile.user?.email || "",
+            phone: userProfile.phone || "",
+            address: userProfile.address || "",
+          });
+        }
+      } catch (fallbackError) {
+        setMessage("Failed to load profile data");
+      }
     } finally {
       setLoading(false);
     }

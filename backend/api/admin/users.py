@@ -35,6 +35,7 @@ class CustomGroupAdmin(admin.ModelAdmin):
 
 class ProfileInline(admin.StackedInline):
     model = Profile
+    fk_name = "user"
     can_delete = False
     verbose_name_plural = "Profile Details"
     fields = (
@@ -152,7 +153,7 @@ class CustomUserAdmin(BaseUserAdmin):
             if form.is_valid():
                 wb = openpyxl.load_workbook(form.cleaned_data['file'])
                 sheet = wb.active
-                # expected columns: username,email,first_name,last_name,role,department,student_class
+               
                 for row in sheet.iter_rows(min_row=2, values_only=True):
                     username, email, first_name, last_name, role, dept, student_cls = row[:7]
                     if not username:

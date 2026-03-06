@@ -1,16 +1,13 @@
 from django.db import models
-from django.utils import timezone
+from api.models import Course
 
 class Assignment(models.Model):
-    course = models.ForeignKey(
-        'api.Course',
-        on_delete=models.CASCADE,
-        related_name='assignments'
-    )
-    title = models.CharField(max_length=200)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="assignments")
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
     deadline = models.DateTimeField()
-    created_at = models.DateTimeField(default=timezone.now, editable=False)
-    updated_at = models.DateTimeField(auto_now=True)  # <--- add this
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)  # keeps track of last edit
 
     def __str__(self):
-        return f"{self.title} ({self.course})"
+        return self.title

@@ -27,10 +27,10 @@ class QuizSubmissionAdmin(admin.ModelAdmin):
 
 @admin.register(Assignment)
 class AssignmentAdmin(admin.ModelAdmin):
-    list_display = ("title", "course", "deadline", "updated_at", "created_at")
-    search_fields = ("title", "course__title")
+    list_display = ("title", "created_at")  # remove course, deadline, updated_at
+    search_fields = ("title",)
     date_hierarchy = "created_at"
-
+    readonly_fields = ("created_at", "updated_at")  # make updated_at read-only
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related("course")

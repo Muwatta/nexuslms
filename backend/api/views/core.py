@@ -1,6 +1,6 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from api.permissions import IsAdminOrInstructor, IsOwnerOrAdmin
+from api.permissions import IsAdminOrInstructor, IsOwnerOrAdmin, IsAdminOrClassInstructor
 from rest_framework.response import Response
 from rest_framework.decorators import action 
 from rest_framework import status
@@ -38,7 +38,10 @@ class ProfileViewSet(ModelViewSet):
         except Profile.DoesNotExist:
             user_profile = None
         print(f"[DEBUG] ProfileViewSet.get_queryset user={user} role={user_role} has_profile={user_profile is not None}")
-        # admin sees all profiles; teachers and instructors see profiles within their department
+        # admin roles see all profiles
+        if user_role in ['admin', 'school_admin', 'super_admin'] or user.is_superuser:
+            return qs
+        # teachers and instructors see profiles within their department
         if user_role in ['teacher', 'instructor'] and user_profile:
             return qs.filter(department=user_profile.department)
         # parents and students only see their own profile
@@ -56,11 +59,13 @@ class ProfileViewSet(ModelViewSet):
             creator_profile = Profile.objects.get(user=user)
         except Profile.DoesNotExist:
             creator_profile = None
-        # allow teachers/instructors/admins to create students in their department
-        if user_role in ['admin', 'teacher', 'instructor'] and creator_profile:
-            serializer.save(department=creator_profile.department)
+
+        # Allow class instructors and admins to create students in their department
+        if user_role in ['admin', 'super_admin'] or \
+           (user_role == 'instructor' and creator_profile and creator_profile.instructor_type == 'class'):
+            serializer.save(department=creator_profile.department if creator_profile else 'western')
         else:
-            raise PermissionDenied('Not allowed to create profiles')
+            raise PermissionDenied('Not allowed to create profiles. Only class instructors and admins can create student profiles.')
 
     def perform_update(self, serializer):
         user_role = getattr(self.request.user, 'role', None)
@@ -80,17 +85,39 @@ class ProfileViewSet(ModelViewSet):
 
     def perform_destroy(self, instance):
         user_role = getattr(self.request.user, 'role', None)
-        if user_role != 'admin' and not self.request.user.is_superuser:
-            raise PermissionDenied('Only admins can delete profiles')
+        if user_role not in ['admin', 'super_admin']:
+            raise PermissionDenied('Only administrators can delete profiles. Instructors cannot delete student profiles.')
         instance.delete()
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminOrInstructor])
     def set_password(self, request, pk=None):
-        """Allow admin/teachers/instructors to set a user's password."""
+        """Allow admin/instructors to set a user's password."""
         profile = self.get_object()
         pwd = request.data.get('password')
         if not pwd:
             return Response({"error": "Password required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if instructor can modify this profile
+        user = request.user
+        try:
+            user_profile = user.profile
+        except Profile.DoesNotExist:
+            return Response({"error": "User profile not found"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Class instructors can only modify students in their department
+        if user_profile.role == 'instructor' and user_profile.instructor_type == 'class':
+            if profile.role != 'student' or profile.department != user_profile.department:
+                return Response(
+                    {"error": "Class instructors can only modify students in their department"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        # Subject instructors cannot set passwords
+        elif user_profile.role == 'instructor' and user_profile.instructor_type == 'subject':
+            return Response(
+                {"error": "Subject instructors cannot set passwords"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         user = profile.user
         user.set_password(pwd)
         user.save()

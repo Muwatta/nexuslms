@@ -10,6 +10,7 @@ const Dashboard = React.lazy(() => import("./pages/Dashboard"));
 const ArabicDashboard = React.lazy(() => import("./pages/ArabicDashboard"));
 const WesternDashboard = React.lazy(() => import("./pages/WesternDashboard"));
 const DigitalDashboard = React.lazy(() => import("./pages/DigitalDashboard"));
+const StudentDashboard = React.lazy(() => import("./pages/StudentDashboard"));
 const Courses = React.lazy(() => import("./pages/Courses"));
 const Enrollments = React.lazy(() => import("./pages/Enrollments"));
 const Assignments = React.lazy(() => import("./pages/Assignments"));
@@ -121,6 +122,15 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/student-dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={["student", "parent"]}>
+                    <StudentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/courses"
                 element={

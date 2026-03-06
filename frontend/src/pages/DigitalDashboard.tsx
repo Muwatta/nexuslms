@@ -45,7 +45,7 @@ const ProgrammingDashboard: React.FC = () => {
       const userDepartment = profile.department;
 
       // Admins can access all dashboards
-      if (userRole === "admin") {
+      if (userRole === "admin" || userRole === "school_admin" || userRole === "super_admin") {
         return;
       }
 

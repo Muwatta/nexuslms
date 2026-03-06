@@ -35,14 +35,13 @@ const WesternDashboard: React.FC = () => {
     ]).finally(() => setLoading(false));
   }, []);
 
-  // Access control check
   useEffect(() => {
     if (profile && userData) {
       const userRole = profile.role;
       const userDepartment = profile.department;
 
       // Admins can access all dashboards
-      if (userRole === "admin") {
+      if (userRole === "admin" || userRole === "school_admin" || userRole === "super_admin") {
         return;
       }
 
@@ -56,13 +55,12 @@ const WesternDashboard: React.FC = () => {
       }
 
       // If role is not recognized, redirect
-      if (!["admin", "instructor", "student"].includes(userRole)) {
+      if (!["admin", "school_admin", "super_admin", "instructor", "student"].includes(userRole)) {
         navigate("/unauthorized");
       }
     }
   }, [profile, userData, navigate]);
 
-  // Function to format name for greeting
   const getGreetingName = (): string => {
     if (profile?.user?.first_name) {
       return profile.user.first_name;

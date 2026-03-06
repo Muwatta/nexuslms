@@ -16,7 +16,12 @@ class CourseViewSet(ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if hasattr(user, 'role') and user.role == 'instructor':
+        user_role = getattr(user, 'role', None)
+        # Admins see all courses
+        if user_role in ['admin', 'school_admin', 'super_admin'] or user.is_superuser:
+            return qs
+        # Instructors see only their courses
+        if user_role == 'instructor':
             try:
                 user_profile = user.profile
                 return qs.filter(instructor=user_profile)

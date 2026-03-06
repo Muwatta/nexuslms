@@ -227,3 +227,173 @@ This will:
 6. Add assignment submission viewing
 7. Integration with actual assignment/test models
 8. Add instructor messaging system
+
+---
+
+## 🔒 Backend Security Implementation
+
+### 1. Permission Classes
+
+**File**: `api/permissions.py`
+
+#### Instructor-Type Specific Permissions:
+
+- `IsClassInstructor`: Only allows class instructors to perform actions
+- `IsSubjectInstructor`: Only allows subject instructors to perform actions
+- `IsInstructor`: Allows any type of instructor
+- `IsAdminOrClassInstructor`: Allows admins or class instructors
+- `IsAdminOrInstructor`: Allows admins or any type of instructor
+
+#### Permission Logic:
+
+```python
+class IsClassInstructor(BasePermission):
+    def has_permission(self, request, view):
+        if request.user.is_superuser:
+            return True
+        try:
+            profile = request.user.profile
+            return profile.role == "instructor" and profile.instructor_type == "class"
+        except AttributeError:
+            return False
+```
+
+### 2. Serializer Validation
+
+**File**: `api/serializers/user.py`
+
+#### Instructor Type Validation:
+
+- `instructor_type` is **required** when `role == "instructor"`
+- `instructor_type` is **forbidden** when `role != "instructor"`
+- Only accepts `"subject"` or `"class"` values
+
+```python
+def validate(self, data):
+    role = data.get('role')
+    instructor_type = data.get('instructor_type')
+
+    if role == 'instructor':
+        if not instructor_type:
+            raise serializers.ValidationError({
+                'instructor_type': 'Instructor type is required when role is instructor.'
+            })
+        if instructor_type not in ['subject', 'class']:
+            raise serializers.ValidationError({
+                'instructor_type': 'Invalid instructor type. Must be "subject" or "class".'
+            })
+    elif instructor_type:
+        raise serializers.ValidationError({
+            'instructor_type': 'Instructor type can only be set when role is instructor.'
+        })
+
+    return data
+```
+
+### 3. Instructor-Specific ViewSets
+
+**File**: `api/views/instructor_views.py`
+
+#### InstructorProfileViewSet:
+
+- **Permission**: `IsInstructor`
+- **Class Instructor**: Can view all students and instructors in their department
+- **Subject Instructor**: Can view students enrolled in their subjects
+
+#### InstructorAssignmentViewSet:
+
+- **Permission**: `IsInstructor`
+- **Scope**: Only assignments in instructor's department
+- **Create**: Validates department matches instructor's department
+
+#### InstructorStudentManagementViewSet:
+
+- **Permission**: `IsAdminOrClassInstructor`
+- **Create/Update**: Only class instructors and admins can manage students
+- **Delete**: Only admins can delete students (instructors cannot)
+
+#### InstructorResultsViewSet:
+
+- **Permission**: `IsInstructor`
+- **Update Results**: Instructors can only update results in their department
+- **Score Validation**: All scores must be 0-100
+
+### 4. Updated Core Permissions
+
+**File**: `api/views/core.py`
+
+#### ProfileViewSet Permissions:
+
+- **Create**: Only class instructors and admins can create student profiles
+- **Update**: Only admins can modify existing profiles
+- **Delete**: Only admins can delete profiles
+- **Set Password**:
+  - Class instructors: Can only set passwords for students in their department
+  - Subject instructors: Cannot set passwords
+  - Admins: Can set any password
+
+### 5. API Endpoints
+
+**File**: `api/urls.py`
+
+New instructor-specific endpoints:
+
+- `/api/instructor/profiles/` - Instructor profile management
+- `/api/instructor/assignments/` - Instructor assignment management
+- `/api/instructor/students/` - Student management (class instructors only)
+- `/api/instructor/results/` - Student results management
+
+## Permission Matrix
+
+| Action               | Subject Instructor | Class Instructor  | Admin    |
+| -------------------- | ------------------ | ----------------- | -------- |
+| View Students        | ✅ (enrolled)      | ✅ (all in class) | ✅ (all) |
+| Create Students      | ❌                 | ✅                | ✅       |
+| Update Students      | ❌                 | ✅                | ✅       |
+| Delete Students      | ❌                 | ❌                | ✅       |
+| Set Passwords        | ❌                 | ✅ (own dept)     | ✅       |
+| Create Assignments   | ✅ (own dept)      | ✅ (own dept)     | ✅       |
+| Update Results       | ✅ (own dept)      | ✅ (own dept)     | ✅       |
+| View All Instructors | ❌                 | ✅ (own dept)     | ✅       |
+
+## Testing Backend Permissions
+
+### Test Instructor Type Validation
+
+```bash
+# This should FAIL - missing instructor_type
+curl -X POST /api/register/ \
+  -d '{"username":"test","password":"pass","role":"instructor"}'
+
+# This should FAIL - invalid instructor_type
+curl -X POST /api/register/ \
+  -d '{"username":"test","password":"pass","role":"instructor","instructor_type":"invalid"}'
+
+# This should SUCCEED
+curl -X POST /api/register/ \
+  -d '{"username":"test","password":"pass","role":"instructor","instructor_type":"class"}'
+```
+
+### Test Permission Enforcement
+
+```bash
+# Login as subject instructor
+# This should FAIL - subject instructors cannot create students
+curl -X POST /api/profiles/ \
+  -H "Authorization: Bearer <token>" \
+  -d '{"user":{"username":"student"},"role":"student"}'
+
+# Login as class instructor
+# This should SUCCEED
+curl -X POST /api/profiles/ \
+  -H "Authorization: Bearer <token>" \
+  -d '{"user":{"username":"student"},"role":"student"}'
+```
+
+## Security Features
+
+1. **Role-Based Access Control (RBAC)**: Permissions based on role and instructor_type
+2. **Department Isolation**: Instructors can only access their department's data
+3. **Action-Level Permissions**: Different permissions for different actions
+4. **Data Validation**: Serializer-level validation prevents invalid data
+5. **Audit Trail**: All actions are logged through Django's admin interface

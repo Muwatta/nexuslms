@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import api from "../api";
 import { motion } from "framer-motion";
@@ -44,9 +45,9 @@ const AdminDashboard: React.FC = () => {
   });
   const [profiles, setProfiles] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "courses">(
-    "overview",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "users" | "courses" | "management"
+  >("overview");
   const [loading, setLoading] = useState(true);
   const [filterRole, setFilterRole] = useState<string>("all");
 
@@ -245,19 +246,30 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Quick action links */}
-            <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="mb-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {[
                 { label: "👥 Manage Users", to: "/manage-users" },
                 { label: "📚 All Courses", to: "/courses" },
                 { label: "📝 Assignments", to: "/assignments" },
                 { label: "📊 Analytics", to: "/analytics" },
+                { label: "🎓 Admission", to: "/admission" },
+                { label: "👤 Visitors", to: "/visitors" },
+                { label: "👨‍🏫 Class Instructors", to: "/class-instructors" },
+                { label: "👔 HRs", to: "/hrs" },
+                { label: "📈 All Results", to: "/all-results" },
+                { label: "🏫 Classes", to: "/classes" },
+                { label: "💰 Finance", to: "/finance" },
+                { label: "👷 Non-Academic Staff", to: "/non-academic-staff" },
+                { label: "👨‍👩‍👧 Parents", to: "/parents" },
+                { label: "🎓 Students", to: "/students" },
+                { label: "📖 Subjects", to: "/subjects" },
               ].map((link) => (
                 <motion.a
                   key={link.to}
                   href={link.to}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="block text-center p-4 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  className="block text-center p-4 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm"
                 >
                   {link.label}
                 </motion.a>
@@ -412,7 +424,7 @@ const AdminDashboard: React.FC = () => {
 
             {/* Tabs */}
             <div className="mb-6 flex gap-2 border-b dark:border-gray-700">
-              {["overview", "users", "courses"].map((tab) => (
+              {["overview", "users", "courses", "management"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab as typeof activeTab)}
@@ -425,6 +437,7 @@ const AdminDashboard: React.FC = () => {
                   {tab === "overview" && "Overview"}
                   {tab === "users" && "Users"}
                   {tab === "courses" && "Courses"}
+                  {tab === "management" && "Management"}
                 </button>
               ))}
             </div>
@@ -610,6 +623,133 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   </motion.div>
                 ))}
+              </div>
+            )}
+
+            {/* Management Tab */}
+            {activeTab === "management" && (
+              <div className="space-y-6">
+                {/* Academic Management */}
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                  <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                    🎓 Academic Management
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[
+                      {
+                        title: "Admission",
+                        description: "Manage student admissions",
+                        icon: "🎓",
+                        color: "blue",
+                      },
+                      {
+                        title: "Students",
+                        description: "View and manage all students",
+                        icon: "👨‍🎓",
+                        color: "green",
+                      },
+                      {
+                        title: "Class Instructors",
+                        description: "Manage class instructors",
+                        icon: "👨‍🏫",
+                        color: "purple",
+                      },
+                      {
+                        title: "Subjects",
+                        description: "Manage course subjects",
+                        icon: "📖",
+                        color: "teal",
+                      },
+                      {
+                        title: "Classes",
+                        description: "Manage class structures",
+                        icon: "🏫",
+                        color: "orange",
+                      },
+                      {
+                        title: "All Results",
+                        description: "View all student results",
+                        icon: "📈",
+                        color: "red",
+                      },
+                    ].map((item) => (
+                      <motion.div
+                        key={item.title}
+                        whileHover={{ scale: 1.05 }}
+                        className={`bg-${item.color}-50 dark:bg-${item.color}-900/20 border border-${item.color}-200 dark:border-${item.color}-800 p-4 rounded-lg cursor-pointer`}
+                      >
+                        <div className="text-2xl mb-2">{item.icon}</div>
+                        <h3 className="font-bold text-gray-900 dark:text-white mb-1">
+                          {item.title}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {item.description}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Administrative Management */}
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                  <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                    🏢 Administrative Management
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[
+                      {
+                        title: "HRs",
+                        description: "Human Resources management",
+                        icon: "👔",
+                        color: "indigo",
+                      },
+                      {
+                        title: "Non-Academic Staff",
+                        description: "Manage support staff",
+                        icon: "👷",
+                        color: "gray",
+                      },
+                      {
+                        title: "Parents",
+                        description: "Parent account management",
+                        icon: "👨‍👩‍👧",
+                        color: "pink",
+                      },
+                      {
+                        title: "Visitors",
+                        description: "Track school visitors",
+                        icon: "👤",
+                        color: "yellow",
+                      },
+                      {
+                        title: "Finance",
+                        description: "Financial management",
+                        icon: "💰",
+                        color: "emerald",
+                      },
+                      {
+                        title: "Assignments",
+                        description: "Manage assignments",
+                        icon: "📝",
+                        color: "cyan",
+                      },
+                    ].map((item) => (
+                      <motion.div
+                        key={item.title}
+                        whileHover={{ scale: 1.05 }}
+                        className={`bg-${item.color}-50 dark:bg-${item.color}-900/20 border border-${item.color}-200 dark:border-${item.color}-800 p-4 rounded-lg cursor-pointer`}
+                      >
+                        <div className="text-2xl mb-2">{item.icon}</div>
+                        <h3 className="font-bold text-gray-900 dark:text-white mb-1">
+                          {item.title}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {item.description}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </>

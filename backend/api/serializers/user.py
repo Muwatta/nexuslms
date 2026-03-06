@@ -57,6 +57,28 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(required=False, allow_blank=True)
     parent_email = serializers.EmailField(required=False, allow_blank=True)
 
+    def validate(self, data):
+        """Validate that instructor_type is provided when role is instructor."""
+        role = data.get('role')
+        instructor_type = data.get('instructor_type')
+
+        if role == 'instructor':
+            if not instructor_type:
+                raise serializers.ValidationError({
+                    'instructor_type': 'Instructor type is required when role is instructor.'
+                })
+            if instructor_type not in ['subject', 'class']:
+                raise serializers.ValidationError({
+                    'instructor_type': 'Invalid instructor type. Must be "subject" or "class".'
+                })
+        elif instructor_type:
+            # If role is not instructor but instructor_type is provided, that's invalid
+            raise serializers.ValidationError({
+                'instructor_type': 'Instructor type can only be set when role is instructor.'
+            })
+
+        return data
+
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("A user with this username already exists.")
