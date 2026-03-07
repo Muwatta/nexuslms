@@ -1,1245 +1,1455 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../api";
-import { getUserData } from "../utils/authUtils";
-import StatsCard from "../components/StatsCard";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Instructor {
+interface StudentInfo {
   id: number;
-  name: string;
-  subject: string;
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  username: string;
   email: string;
+  department: string;
+  student_class?: string;
+  bio?: string;
   phone?: string;
-  avatar?: string;
 }
-
+interface Course {
+  id: number;
+  title: string;
+  description?: string;
+  department?: string;
+  student_class?: string;
+  instructor_name?: string;
+  instructor_id?: number;
+  is_enrolled: boolean;
+  total_students: number;
+}
+interface Enrollment {
+  id: number;
+  course: number;
+  course_title: string;
+  course_department?: string;
+  academic_year: string;
+  term: string;
+  status: string;
+  enrolled_at: string;
+  add_drop_count: number;
+  drop_history: DropEvent[];
+  instructor_name?: string;
+}
+interface DropEvent {
+  action: "add" | "drop";
+  course_id: number;
+  course_title: string;
+  timestamp: string;
+}
 interface Assignment {
   id: number;
   title: string;
-  description: string;
-  course: string;
-  due_date: string;
-  file_url?: string;
-  status: "pending" | "submitted" | "graded";
-  grade?: number;
-  feedback?: string;
-  max_score: number;
+  description?: string;
+  deadline: string;
+  course: number;
+  course_title?: string;
+  max_score?: number;
 }
-
-interface TestResult {
-  id: number;
-  title: string;
-  type: "test" | "exam" | "quiz";
-  score: number;
-  max_score: number;
-  date: string;
-  class_average: number;
-  highest_score: number;
-  lowest_score: number;
-  rank: number;
-  total_students: number;
-}
-
-interface FeeInfo {
+interface FeeStatus {
   academic_year: string;
   term: string;
-  total_amount: number;
-  amount_paid: number;
-  balance: number;
-  status: "paid" | "partial" | "pending" | "overdue";
+  total_amount: string;
+  amount_paid: string;
+  balance: string;
+  status: "pending" | "partial" | "paid" | "overdue";
   due_date: string;
-  payments: { date: string; amount: number; reference: string }[];
 }
-
+interface Instructor {
+  id: number;
+  full_name: string;
+  username: string;
+  email?: string;
+  department?: string;
+  instructor_type?: string;
+  course_titles: string[];
+}
+interface ChatThread {
+  user_id: number;
+  name: string;
+  role?: string;
+  last_message?: string;
+  last_time?: string;
+  unread: number;
+}
 interface ChatMessage {
   id: number;
-  sender_id: number;
+  sender: number;
   sender_name: string;
-  sender_role: string;
+  sender_role?: string;
+  recipient: number;
+  recipient_name: string;
   message: string;
-  file_url?: string;
   timestamp: string;
   is_read: boolean;
 }
-
-interface AnalyticsData {
-  subject: string;
-  current_score: number;
-  previous_score: number;
-  class_average: number;
-  trend: "up" | "down" | "stable";
+interface Announcement {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  course?: string;
+  due?: string;
 }
 
-// ─── Profile shape from /profiles/me/ ────────────────────────────────────────
-// API returns snake_case — use those field names directly
-interface ApiProfile {
-  id?: number;
-  role?: string;
-  department?: string;
-  student_class?: string;
-  student_id?: string;
-  user?: {
-    id?: number;
-    first_name?: string; // ← snake_case from Django
-    last_name?: string; // ← snake_case from Django
-    username?: string;
-    email?: string;
-  };
+interface DashboardData {
+  student: StudentInfo;
+  current_year: string;
+  current_term: string;
+  enrollments: Enrollment[];
+  assignments: Assignment[];
+  fee_status: FeeStatus | null;
+  instructors: Instructor[];
+  unread_messages: number;
+  add_drop_used: number;
+  add_drop_remaining: number;
 }
 
-type TabId =
-  | "overview"
+type Tab =
+  | "home"
+  | "courses"
   | "assignments"
-  | "tests"
+  | "results"
   | "fees"
   | "chat"
-  | "analytics";
+  | "instructors";
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Colours ──────────────────────────────────────────────────────────────────
+const DEPT_COLOR: Record<string, string> = {
+  western: "from-blue-600 to-cyan-500",
+  arabic: "from-emerald-600 to-teal-500",
+  programming: "from-violet-600 to-purple-500",
+};
+const FEE_BADGE: Record<string, string> = {
+  paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  partial:
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  pending: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+  overdue: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+};
+const STATUS_BADGE: Record<string, string> = {
+  active:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  dropped: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  pending:
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  completed: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  promoted:
+    "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fullName = (s: StudentInfo) =>
+  `${s.first_name} ${s.last_name}`.trim() || s.username;
+
+const initial = (name: string) => name.trim()[0]?.toUpperCase() ?? "?";
+
+const daysUntil = (dateStr: string) => {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  return Math.ceil(diff / 86400000);
+};
+
+const fmtDate = (d: string) =>
+  new Date(d).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+const fmtTime = (d: string) =>
+  new Date(d).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+// ─── Tab nav config ───────────────────────────────────────────────────────────
+const TABS: { id: Tab; icon: string; label: string }[] = [
+  { id: "home", icon: "🏠", label: "Home" },
+  { id: "courses", icon: "📚", label: "Courses" },
+  { id: "assignments", icon: "📝", label: "Assignments" },
+  { id: "results", icon: "📊", label: "Results" },
+  { id: "fees", icon: "💳", label: "Fees" },
+  { id: "chat", icon: "💬", label: "Chat" },
+  { id: "instructors", icon: "👨‍🏫", label: "Teachers" },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
 const StudentDashboard: React.FC = () => {
-  const navigate = useNavigate();
-  const storedUser = getUserData(); // camelCase localStorage snapshot
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
-
-  // API profile with correct snake_case fields
-  const [profile, setProfile] = useState<ApiProfile | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [allEnrollments, setAllEnrollments] = useState<Enrollment[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("home");
   const [loading, setLoading] = useState(true);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [feeInfo, setFeeInfo] = useState<FeeInfo | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [analytics, setAnalytics] = useState<AnalyticsData[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // Course add/drop
+  const [courseFilter, setCourseFilter] = useState<
+    "all" | "enrolled" | "available"
+  >("all");
+  const [addDropBusy, setAddDropBusy] = useState<number | null>(null);
 
   // Chat
-  const [selectedInstructor, setSelectedInstructor] =
-    useState<Instructor | null>(null);
-  const [newMessage, setNewMessage] = useState("");
-  const [chatFile, setChatFile] = useState<File | null>(null);
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [activeThread, setActiveThread] = useState<ChatThread | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const msgEndRef = useRef<HTMLDivElement>(null);
 
-  // Assignment submission
-  const [selectedAssignment, setSelectedAssignment] =
-    useState<Assignment | null>(null);
-  const [submissionFile, setSubmissionFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const notify = (ok: boolean, msg: string) => {
+    setToast({ ok, msg });
+    setTimeout(() => setToast(null), 4500);
+  };
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  // ── Fetch dashboard ─────────────────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const [
-        profileRes,
-        instructorsRes,
-        assignmentsRes,
-        testsRes,
-        feesRes,
-        chatRes,
-        analyticsRes,
-      ] = await Promise.all([
-        api.get("/profiles/me/"),
-        api.get("/instructors/my-instructors/"),
-        api.get("/assignments/my-assignments/"),
-        api.get("/results/my-results/"),
-        api.get("/fees/my-fees/"),
-        api.get("/chat/unread-count/"),
-        api.get("/analytics/my-performance/"),
+      const [dashRes, courseRes, annoRes, histRes] = await Promise.allSettled([
+        api.get("/student/dashboard/"),
+        api.get("/student/courses/"),
+        api.get("/student/announcements/"),
+        api.get("/student/enrollments/"),
       ]);
-
-      setProfile(profileRes.data);
-      setInstructors(instructorsRes.data);
-      setAssignments(assignmentsRes.data);
-      setTestResults(testsRes.data);
-      setFeeInfo(feesRes.data);
-      setUnreadCount(chatRes.data.count);
-      setAnalytics(analyticsRes.data);
-
-      if (instructorsRes.data.length > 0) {
-        const chatHistoryRes = await api.get(
-          `/chat/history/${instructorsRes.data[0].id}/`,
-        );
-        setChatMessages(chatHistoryRes.data);
+      if (dashRes.status === "fulfilled") setData(dashRes.value.data);
+      if (courseRes.status === "fulfilled") {
+        const d = courseRes.value.data;
+        setCourses(Array.isArray(d) ? d : (d?.results ?? []));
       }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+      if (annoRes.status === "fulfilled")
+        setAnnouncements(annoRes.value.data ?? []);
+      if (histRes.status === "fulfilled") {
+        const d = histRes.value.data;
+        setAllEnrollments(Array.isArray(d) ? d : (d?.results ?? []));
+      }
+    } catch {
+      notify(false, "Failed to load dashboard");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const calculateAverageGrade = () => {
-    const graded = assignments.filter((a) => a.grade !== undefined);
-    if (!graded.length) return 0;
-    return Math.round(
-      graded.reduce((sum, a) => sum + ((a.grade ?? 0) / a.max_score) * 100, 0) /
-        graded.length,
-    );
-  };
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
-  const getFileType = (filename: string): string => {
-    const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-    if (ext === "pdf") return "pdf";
-    if (["doc", "docx"].includes(ext)) return "doc";
-    if (["jpg", "jpeg", "png", "gif"].includes(ext)) return "image";
-    if (["mp4", "avi", "mov"].includes(ext)) return "video";
-    return "other";
-  };
-
-  // ── Resolved display values (snake_case from API, camelCase fallback) ───────
-  // This is the KEY fix — profile.user.first_name not profile.user.firstName
-  const displayFirstName =
-    profile?.user?.first_name || // ✅ snake_case from Django API
-    storedUser?.firstName || // camelCase fallback from localStorage
-    profile?.user?.username ||
-    storedUser?.username ||
-    "";
-
-  const displayClass = profile?.student_class ?? "";
-  const displayDepartment = profile?.department ?? storedUser?.department ?? "";
-
-  // ── File submission ────────────────────────────────────────────────────────
-  const handleFileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAssignment || !submissionFile) return;
-    setSubmitting(true);
-    const formData = new FormData();
-    formData.append("file", submissionFile);
-    formData.append("assignment_id", selectedAssignment.id.toString());
-    formData.append("file_type", getFileType(submissionFile.name));
+  // ── Chat fetch ──────────────────────────────────────────────────────────
+  const fetchThreads = useCallback(async () => {
     try {
-      await api.post(
-        `/assignments/${selectedAssignment.id}/submit/`,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
+      const res = await api.get("/student/chat/");
+      setThreads(res.data ?? []);
+    } catch {}
+  }, []);
+
+  const fetchMessages = useCallback(async (userId: number) => {
+    setChatLoading(true);
+    try {
+      const res = await api.get(`/student/chat/?with=${userId}`);
+      setMessages(res.data ?? []);
+      setTimeout(
+        () => msgEndRef.current?.scrollIntoView({ behavior: "smooth" }),
+        100,
       );
-      const res = await api.get("/assignments/my-assignments/");
-      setAssignments(res.data);
-      setSelectedAssignment(null);
-      setSubmissionFile(null);
-      alert("Assignment submitted successfully!");
     } catch {
-      alert("Failed to submit assignment. Please try again.");
     } finally {
-      setSubmitting(false);
+      setChatLoading(false);
     }
-  };
+  }, []);
 
-  // ── Chat ───────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (activeTab === "chat") {
+      fetchThreads();
+    }
+  }, [activeTab, fetchThreads]);
+
+  useEffect(() => {
+    if (activeThread) fetchMessages(activeThread.user_id);
+  }, [activeThread, fetchMessages]);
+
   const sendMessage = async () => {
-    if (!selectedInstructor || (!newMessage && !chatFile)) return;
-    const formData = new FormData();
-    formData.append("recipient_id", selectedInstructor.id.toString());
-    if (newMessage) formData.append("message", newMessage);
-    if (chatFile) formData.append("file", chatFile);
+    if (!activeThread || !chatInput.trim()) return;
     try {
-      await api.post("/chat/send/", formData);
-      setNewMessage("");
-      setChatFile(null);
-      const res = await api.get(`/chat/history/${selectedInstructor.id}/`);
-      setChatMessages(res.data);
+      await api.post("/student/chat/", {
+        recipient: activeThread.user_id,
+        message: chatInput.trim(),
+      });
+      setChatInput("");
+      fetchMessages(activeThread.user_id);
     } catch {
-      /* handle silently */
+      notify(false, "Failed to send message");
     }
   };
 
-  const loadChatHistory = async (instructor: Instructor) => {
-    setSelectedInstructor(instructor);
+  // ── Add / Drop ──────────────────────────────────────────────────────────
+  const handleEnroll = async (courseId: number) => {
+    if (!data || data.add_drop_remaining <= 0) {
+      notify(
+        false,
+        `Add/drop limit reached (${data?.add_drop_used ?? 2}/2 used this term).`,
+      );
+      return;
+    }
+    setAddDropBusy(courseId);
     try {
-      const res = await api.get(`/chat/history/${instructor.id}/`);
-      setChatMessages(res.data);
-      await api.post(`/chat/mark-read/${instructor.id}/`);
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch {
-      /* handle silently */
+      await api.post(`/student/courses/${courseId}/enroll/`);
+      notify(true, "Enrolled successfully");
+      fetchAll();
+    } catch (e: any) {
+      notify(false, e?.response?.data?.detail ?? "Enroll failed");
+    } finally {
+      setAddDropBusy(null);
     }
   };
 
- 
-  const renderOverview = () => (
-    <div className="space-y-5">
-      {/* Welcome header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-5 sm:p-6 text-white">
-        
-        <h1 className="text-xl sm:text-3xl font-bold mb-1 sm:mb-2 truncate">
-          Welcome back, {displayFirstName || "Student"}!
-        </h1>
-        <p className="text-blue-100 text-sm sm:text-base">
-          {displayClass && (
-            <>
-              Class: <span className="font-medium">{displayClass}</span>
-            </>
-          )}
-          {displayClass && displayDepartment && " · "}
-          {displayDepartment && (
-            <>
-              Department:{" "}
-              <span className="font-medium capitalize">
-                {displayDepartment}
-              </span>
-            </>
-          )}
-        </p>
-        {profile?.student_id && (
-          <p className="text-xs sm:text-sm mt-2 bg-white/20 inline-block px-3 py-1 rounded-full">
-            Student ID: {profile.student_id}
-          </p>
-        )}
-      </div>
+  const handleDrop = async (courseId: number) => {
+    if (!data || data.add_drop_remaining <= 0) {
+      notify(
+        false,
+        `Add/drop limit reached (${data?.add_drop_used ?? 2}/2 used this term).`,
+      );
+      return;
+    }
+    setAddDropBusy(courseId);
+    try {
+      await api.post(`/student/courses/${courseId}/drop/`);
+      notify(true, "Course dropped");
+      fetchAll();
+    } catch (e: any) {
+      notify(false, e?.response?.data?.detail ?? "Drop failed");
+    } finally {
+      setAddDropBusy(null);
+    }
+  };
 
-      {/* Quick stats — 2 cols on mobile, 4 on md+ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <StatsCard
-          icon="📝"
-          label="Pending"
-          value={assignments.filter((a) => a.status === "pending").length}
-          color="yellow"
-        />
-        <StatsCard
-          icon="✅"
-          label="Submitted"
-          value={assignments.filter((a) => a.status === "submitted").length}
-          color="green"
-        />
-        <StatsCard
-          icon="📊"
-          label="Avg Grade"
-          value={`${calculateAverageGrade()}%`}
-          color="blue"
-        />
-        <StatsCard
-          icon="💬"
-          label="Unread Msgs"
-          value={unreadCount}
-          color="purple"
-        />
-      </div>
+  // ── Filtered courses ────────────────────────────────────────────────────
+  const filteredCourses = courses.filter((c) => {
+    if (courseFilter === "enrolled") return c.is_enrolled;
+    if (courseFilter === "available") return !c.is_enrolled;
+    return true;
+  });
 
-      {/* My Instructors */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-bold mb-4 dark:text-white">
-          My Instructors
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {instructors.map((instructor) => (
-            <motion.div
-              key={instructor.id}
-              whileHover={{ scale: 1.02 }}
-              className="border dark:border-gray-700 rounded-lg p-4 cursor-pointer
-                hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              onClick={() => loadChatHistory(instructor)}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full
-                  flex items-center justify-center text-xl sm:text-2xl shrink-0"
-                >
-                  {instructor.avatar || "👨‍🏫"}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-semibold dark:text-white truncate">
-                    {instructor.name}
-                  </h3>
-                  <p className="text-sm text-gray-500 truncate">
-                    {instructor.subject}
-                  </p>
-                </div>
-              </div>
-              <button
-                className="mt-3 w-full text-sm bg-blue-100 dark:bg-blue-900
-                text-blue-700 dark:text-blue-300 py-1.5 rounded-lg transition-colors
-                hover:bg-blue-200 dark:hover:bg-blue-800"
-              >
-                💬 Chat
-              </button>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Assignments */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 sm:p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg sm:text-xl font-bold dark:text-white">
-            Recent Assignments
-          </h2>
-          <button
-            onClick={() => setActiveTab("assignments")}
-            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 whitespace-nowrap"
-          >
-            View All →
-          </button>
-        </div>
-        <div className="space-y-3">
-          {assignments.slice(0, 3).map((a) => (
-            <div
-              key={a.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between
-                gap-2 p-3 border dark:border-gray-700 rounded-lg"
-            >
-              <div className="min-w-0">
-                <h3 className="font-medium dark:text-white truncate">
-                  {a.title}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {a.course} · Due: {new Date(a.due_date).toLocaleDateString()}
-                </p>
-              </div>
-              <span
-                className={`self-start sm:self-center shrink-0 px-3 py-1 rounded-full text-xs sm:text-sm font-medium
-                ${
-                  a.status === "graded"
-                    ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                    : a.status === "submitted"
-                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
-                      : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
-                }`}
-              >
-                {a.status === "graded"
-                  ? `Graded: ${a.grade}/${a.max_score}`
-                  : a.status === "submitted"
-                    ? "Submitted"
-                    : "Pending"}
-              </span>
-            </div>
-          ))}
-          {assignments.length === 0 && (
-            <p className="text-gray-400 text-sm text-center py-4">
-              No assignments yet
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Fee Status */}
-      {feeInfo && (
-        <div
-          className={`rounded-xl p-4 sm:p-6 border
-          ${
-            feeInfo.status === "paid"
-              ? "bg-green-50  dark:bg-green-900/20  border-green-200  dark:border-green-800"
-              : feeInfo.status === "overdue"
-                ? "bg-red-50    dark:bg-red-900/20    border-red-200    dark:border-red-800"
-                : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
-          }`}
-        >
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-4">
-            <div>
-              <h2 className="text-base sm:text-lg font-bold dark:text-white">
-                School Fees — {feeInfo.term}
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Due: {new Date(feeInfo.due_date).toLocaleDateString()}
-              </p>
-            </div>
-            <span
-              className={`self-start shrink-0 px-3 py-1 rounded-full text-sm font-medium
-              ${
-                feeInfo.status === "paid"
-                  ? "bg-green-200  text-green-800"
-                  : feeInfo.status === "overdue"
-                    ? "bg-red-200    text-red-800"
-                    : "bg-yellow-200 text-yellow-800"
-              }`}
-            >
-              {feeInfo.status.toUpperCase()}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            {[
-              {
-                label: "Total",
-                value: feeInfo.total_amount,
-                color: "text-gray-900 dark:text-white",
-              },
-              {
-                label: "Paid",
-                value: feeInfo.amount_paid,
-                color: "text-green-600",
-              },
-              {
-                label: "Balance",
-                value: feeInfo.balance,
-                color: "text-red-600",
-              },
-            ].map(({ label, value, color }) => (
-              <div key={label}>
-                <p className={`text-lg sm:text-2xl font-bold ${color}`}>
-                  ₦{value.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500">{label}</p>
-              </div>
-            ))}
-          </div>
-          {feeInfo.balance > 0 && (
-            <button
-              onClick={() => setActiveTab("fees")}
-              className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg
-                text-sm font-medium transition-colors"
-            >
-              Make Payment
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  RENDER: ASSIGNMENTS
-  // ══════════════════════════════════════════════════════════════════════════
-  const renderAssignments = () => (
-    <div className="space-y-4 sm:space-y-6">
-      <h2 className="text-xl sm:text-2xl font-bold dark:text-white">
-        My Assignments
-      </h2>
-      <div className="grid gap-4">
-        {assignments.map((assignment) => (
-          <motion.div
-            key={assignment.id}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 sm:p-6"
-          >
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-4">
-              <div className="min-w-0">
-                <h3 className="text-base sm:text-lg font-semibold dark:text-white">
-                  {assignment.title}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  {assignment.course}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Due: {new Date(assignment.due_date).toLocaleString()}
-                </p>
-              </div>
-              <span
-                className={`self-start shrink-0 px-3 py-1 rounded-full text-xs sm:text-sm font-medium
-                ${
-                  assignment.status === "graded"
-                    ? "bg-green-100 text-green-800"
-                    : assignment.status === "submitted"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-yellow-100 text-yellow-800"
-                }`}
-              >
-                {assignment.status.replace("_", " ").toUpperCase()}
-              </span>
-            </div>
-            <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
-              {assignment.description}
-            </p>
-            {assignment.file_url && (
-              <a
-                href={assignment.file_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm mb-4"
-              >
-                📎 Download Assignment Material
-              </a>
-            )}
-            {assignment.status === "pending" && (
-              <div className="border-t dark:border-gray-700 pt-4">
-                {!selectedAssignment ||
-                selectedAssignment.id !== assignment.id ? (
-                  <button
-                    onClick={() => setSelectedAssignment(assignment)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                  >
-                    Submit Assignment
-                  </button>
-                ) : (
-                  <form onSubmit={handleFileSubmit} className="space-y-3">
-                    <div
-                      className="border-2 border-dashed border-gray-300 dark:border-gray-600
-                      rounded-lg p-4 text-center"
-                    >
-                      <input
-                        type="file"
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4"
-                        onChange={(e) =>
-                          setSubmissionFile(e.target.files?.[0] || null)
-                        }
-                        className="hidden"
-                        id={`file-${assignment.id}`}
-                      />
-                      <label
-                        htmlFor={`file-${assignment.id}`}
-                        className="cursor-pointer block text-sm"
-                      >
-                        {submissionFile ? (
-                          <span className="text-green-600">
-                            ✓ {submissionFile.name}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">
-                            Tap to upload (PDF, Word, Image, Video)
-                          </span>
-                        )}
-                      </label>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={!submissionFile || submitting}
-                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400
-                          text-white py-2 rounded-lg text-sm transition-colors"
-                      >
-                        {submitting ? "Uploading..." : "Submit"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedAssignment(null);
-                          setSubmissionFile(null);
-                        }}
-                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 dark:text-gray-200
-                          rounded-lg text-sm transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            )}
-            {assignment.status === "graded" && (
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 mt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-semibold text-green-800 dark:text-green-200 text-sm">
-                    Grade
-                  </span>
-                  <span className="text-xl font-bold text-green-800 dark:text-green-200">
-                    {assignment.grade}/{assignment.max_score}
-                  </span>
-                </div>
-                {assignment.feedback && (
-                  <p className="text-sm text-green-700 dark:text-green-300">
-                    Feedback: {assignment.feedback}
-                  </p>
-                )}
-              </div>
-            )}
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  RENDER: TESTS
-  // ══════════════════════════════════════════════════════════════════════════
-  const renderTests = () => (
-    <div className="space-y-4 sm:space-y-6">
-      <h2 className="text-xl sm:text-2xl font-bold dark:text-white">
-        Tests & Results
-      </h2>
-
-      {/* Desktop table — hidden on mobile */}
-      <div className="hidden md:block bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              {["Test/Exam", "Type", "Score", "Class Stats", "Rank"].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {testResults.map((result) => (
-              <tr
-                key={result.id}
-                className="hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                <td className="px-4 py-3 dark:text-white text-sm">
-                  {result.title}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium
-                    ${
-                      result.type === "exam"
-                        ? "bg-red-100 text-red-800"
-                        : result.type === "test"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-green-100 text-green-800"
-                    }`}
-                  >
-                    {result.type.toUpperCase()}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`font-bold text-sm
-                    ${
-                      result.score / result.max_score >= 0.7
-                        ? "text-green-600"
-                        : result.score / result.max_score >= 0.5
-                          ? "text-yellow-600"
-                          : "text-red-600"
-                    }`}
-                  >
-                    {result.score}/{result.max_score}
-                  </span>
-                  <span className="text-xs text-gray-500 ml-1">
-                    ({((result.score / result.max_score) * 100).toFixed(1)}%)
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                  Avg: {result.class_average} · High: {result.highest_score} ·
-                  Low: {result.lowest_score}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="font-bold text-blue-600 text-sm">
-                    #{result.rank} of {result.total_students}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Mobile cards — shown only on mobile */}
-      <div className="md:hidden space-y-3">
-        {testResults.map((result) => (
-          <div
-            key={result.id}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow p-4"
-          >
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="font-semibold dark:text-white text-sm flex-1 pr-2">
-                {result.title}
-              </h3>
-              <span
-                className={`px-2 py-0.5 rounded text-xs font-medium shrink-0
-                ${
-                  result.type === "exam"
-                    ? "bg-red-100 text-red-800"
-                    : result.type === "test"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-green-100 text-green-800"
-                }`}
-              >
-                {result.type.toUpperCase()}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-sm mb-2">
-              <span
-                className={`font-bold
-                ${
-                  result.score / result.max_score >= 0.7
-                    ? "text-green-600"
-                    : result.score / result.max_score >= 0.5
-                      ? "text-yellow-600"
-                      : "text-red-600"
-                }`}
-              >
-                {result.score}/{result.max_score} (
-                {((result.score / result.max_score) * 100).toFixed(1)}%)
-              </span>
-              <span className="font-bold text-blue-600">
-                #{result.rank}/{result.total_students}
-              </span>
-            </div>
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full
-                ${
-                  result.score / result.max_score >= 0.7
-                    ? "bg-green-500"
-                    : result.score / result.max_score >= 0.5
-                      ? "bg-yellow-500"
-                      : "bg-red-500"
-                }`}
-                style={{ width: `${(result.score / result.max_score) * 100}%` }}
-              />
-            </div>
-            <p className="text-xs text-gray-400 mt-2">
-              Class avg: {result.class_average} · High: {result.highest_score} ·
-              Low: {result.lowest_score}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  RENDER: FEES
-  // ══════════════════════════════════════════════════════════════════════════
-  const renderFees = () => (
-    <div className="space-y-4 sm:space-y-6">
-      <h2 className="text-xl sm:text-2xl font-bold dark:text-white">
-        School Fees
-      </h2>
-      {feeInfo ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-6">
-            <div>
-              <h3 className="text-lg font-semibold dark:text-white">
-                {feeInfo.term} — {feeInfo.academic_year}
-              </h3>
-              <p className="text-gray-500 text-sm">
-                Due: {new Date(feeInfo.due_date).toLocaleDateString()}
-              </p>
-            </div>
-            <span
-              className={`self-start px-4 py-1.5 rounded-full font-medium text-sm
-              ${
-                feeInfo.status === "paid"
-                  ? "bg-green-100 text-green-800"
-                  : feeInfo.status === "overdue"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-yellow-100 text-yellow-800"
-              }`}
-            >
-              {feeInfo.status.toUpperCase()}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-6">
-            {[
-              {
-                label: "Total Amount",
-                value: feeInfo.total_amount,
-                cls: "text-gray-900 dark:text-white",
-              },
-              {
-                label: "Amount Paid",
-                value: feeInfo.amount_paid,
-                cls: "text-green-600",
-              },
-              {
-                label: "Balance Due",
-                value: feeInfo.balance,
-                cls: "text-red-600",
-              },
-            ].map(({ label, value, cls }) => (
-              <div
-                key={label}
-                className="text-center p-3 sm:p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
-              >
-                <p className={`text-lg sm:text-3xl font-bold ${cls}`}>
-                  ₦{value.toLocaleString()}
-                </p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">{label}</p>
-              </div>
-            ))}
-          </div>
-          {feeInfo.balance > 0 && (
-            <div className="border-t dark:border-gray-700 pt-4 sm:pt-6">
-              <h4 className="font-semibold mb-3 dark:text-white text-sm sm:text-base">
-                Make Payment
-              </h4>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3
-                  rounded-lg font-medium text-sm transition-colors"
-                >
-                  Pay Full (₦{feeInfo.balance.toLocaleString()})
-                </button>
-                <button
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3
-                  rounded-lg font-medium text-sm transition-colors"
-                >
-                  Pay Partial
-                </button>
-              </div>
-            </div>
-          )}
-          {feeInfo.payments.length > 0 && (
-            <div className="mt-4 sm:mt-6">
-              <h4 className="font-semibold mb-3 dark:text-white text-sm sm:text-base">
-                Payment History
-              </h4>
-              <div className="space-y-2">
-                {feeInfo.payments.map((p, i) => (
-                  <div
-                    key={i}
-                    className="flex justify-between items-center p-3
-                    bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium dark:text-white text-sm">
-                        ₦{p.amount.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Ref: {p.reference}
-                      </p>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {new Date(p.date).toLocaleDateString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="text-gray-500 text-sm">No fee information available</p>
-      )}
-    </div>
-  );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  RENDER: CHAT  (mobile-first: stacked on mobile, side-by-side on md+)
-  // ══════════════════════════════════════════════════════════════════════════
-  const renderChat = () => (
-    <div
-      className="flex flex-col md:flex-row gap-4"
-      style={{ height: "calc(100vh - 220px)", minHeight: 400 }}
-    >
-      {/* Instructor list — full width on mobile when no instructor selected */}
-      <div
-        className={`${selectedInstructor ? "hidden md:flex" : "flex"} 
-        flex-col w-full md:w-1/3 bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden`}
-      >
-        <div className="p-4 border-b dark:border-gray-700 shrink-0">
-          <h3 className="font-bold dark:text-white text-sm">My Instructors</h3>
-        </div>
-        <div className="overflow-y-auto flex-1">
-          {instructors.map((instructor) => (
-            <div
-              key={instructor.id}
-              onClick={() => loadChatHistory(instructor)}
-              className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700
-                border-b dark:border-gray-700 transition-colors
-                ${selectedInstructor?.id === instructor.id ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-                  {instructor.avatar || "👨‍🏫"}
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium dark:text-white text-sm truncate">
-                    {instructor.name}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {instructor.subject}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Chat area — full width on mobile when instructor selected */}
-      <div
-        className={`${selectedInstructor ? "flex" : "hidden md:flex"}
-        flex-1 flex-col bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden`}
-      >
-        {selectedInstructor ? (
-          <>
-            <div className="p-4 border-b dark:border-gray-700 flex items-center gap-3 shrink-0">
-              {/* Back button on mobile */}
-              <button
-                className="md:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 p-1"
-                onClick={() => setSelectedInstructor(null)}
-              >
-                ←
-              </button>
-              <div>
-                <h3 className="font-bold dark:text-white text-sm">
-                  {selectedInstructor.name}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  {selectedInstructor.subject}
-                </p>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chatMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender_id === profile?.user?.id ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] sm:max-w-[70%] rounded-lg p-3 text-sm
-                    ${
-                      msg.sender_id === profile?.user?.id
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 dark:bg-gray-700 dark:text-white"
-                    }`}
-                  >
-                    <p>{msg.message}</p>
-                    {msg.file_url && (
-                      <a
-                        href={msg.file_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs underline mt-1 block"
-                      >
-                        📎 Attachment
-                      </a>
-                    )}
-                    <p className="text-xs mt-1 opacity-70">
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="p-3 sm:p-4 border-t dark:border-gray-700 shrink-0">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  placeholder="Type a message..."
-                  className="flex-1 px-3 py-2 text-sm border dark:border-gray-600 rounded-lg
-                    dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="file"
-                  onChange={(e) => setChatFile(e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="chat-file"
-                />
-                <label
-                  htmlFor="chat-file"
-                  className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg cursor-pointer
-                    text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                >
-                  📎
-                </label>
-                <button
-                  onClick={sendMessage}
-                  disabled={!newMessage && !chatFile}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400
-                    text-white rounded-lg text-sm transition-colors"
-                >
-                  Send
-                </button>
-              </div>
-              {chatFile && (
-                <p className="text-xs text-gray-500 mt-1 truncate">
-                  📎 {chatFile.name}
-                </p>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm p-8 text-center">
-            Select an instructor to start chatting
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  RENDER: ANALYTICS
-  // ══════════════════════════════════════════════════════════════════════════
-  const renderAnalytics = () => (
-    <div className="space-y-4 sm:space-y-6">
-      <h2 className="text-xl sm:text-2xl font-bold dark:text-white">
-        Performance Analytics
-      </h2>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 sm:p-6">
-        <h3 className="text-base sm:text-lg font-semibold mb-4 dark:text-white">
-          Score Trends
-        </h3>
-        <div className="h-48 sm:h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={analytics}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="subject" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="current_score"
-                stroke="#3B82F6"
-                name="Current"
-                strokeWidth={2}
-              />
-              <Line
-                type="monotone"
-                dataKey="previous_score"
-                stroke="#9CA3AF"
-                name="Previous"
-                strokeWidth={2}
-              />
-              <Line
-                type="monotone"
-                dataKey="class_average"
-                stroke="#10B981"
-                name="Class Avg"
-                strokeWidth={2}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-      <div className="grid gap-4">
-        {analytics.map((subject) => (
-          <motion.div
-            key={subject.subject}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 sm:p-6"
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold dark:text-white text-sm sm:text-base">
-                {subject.subject}
-              </h3>
-              <span
-                className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm
-                ${
-                  subject.trend === "up"
-                    ? "bg-green-100 text-green-800"
-                    : subject.trend === "down"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-gray-100 text-gray-800"
-                }`}
-              >
-                {subject.trend === "up"
-                  ? "📈 Improving"
-                  : subject.trend === "down"
-                    ? "📉 Declining"
-                    : "➡️ Stable"}
-              </span>
-            </div>
-            <div className="space-y-3">
-              {[
-                {
-                  label: "Your Score",
-                  value: subject.current_score,
-                  color:
-                    subject.current_score >= 70
-                      ? "bg-green-500"
-                      : subject.current_score >= 50
-                        ? "bg-yellow-500"
-                        : "bg-red-500",
-                },
-                {
-                  label: "Class Average",
-                  value: subject.class_average,
-                  color: "bg-blue-500",
-                },
-              ].map(({ label, value, color }) => (
-                <div key={label}>
-                  <div className="flex justify-between text-xs sm:text-sm mb-1">
-                    <span className="dark:text-gray-300">{label}</span>
-                    <span className="font-bold dark:text-white">{value}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${color} transition-all duration-500`}
-                      style={{ width: `${value}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  LOADING STATE
-  // ══════════════════════════════════════════════════════════════════════════
+  // ── Loading ─────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div
+        className="min-h-screen flex items-center justify-center
+        bg-gradient-to-br from-slate-900 to-slate-800"
+      >
         <div className="text-center">
           <div
-            className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full
-            animate-spin mx-auto mb-3"
+            className="w-14 h-14 border-4 border-teal-400 border-t-transparent
+            rounded-full animate-spin mx-auto mb-4"
           />
-          <p className="text-gray-500 text-sm">Loading dashboard...</p>
+          <p className="text-slate-400 text-sm tracking-wide">
+            Loading your dashboard…
+          </p>
         </div>
       </div>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  MAIN RENDER
-  // ══════════════════════════════════════════════════════════════════════════
+  if (!data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <p className="text-red-400">
+          Could not load student data. Please refresh.
+        </p>
+      </div>
+    );
+  }
+
+  const {
+    student,
+    current_term,
+    current_year,
+    enrollments,
+    assignments,
+    fee_status,
+    instructors,
+    unread_messages,
+    add_drop_used,
+    add_drop_remaining,
+  } = data;
+
+  const deptGrad =
+    DEPT_COLOR[student.department] ?? "from-slate-600 to-slate-500";
+
+  // ═════════════════════════════════════════════════════════════════════════
   return (
-    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
-      {/* Tab bar — horizontally scrollable on mobile so nothing wraps */}
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
+      {/* ── Hero / Identity banner ─────────────────────────────────────────── */}
       <div
-        className="flex gap-1 sm:gap-2 mb-5 sm:mb-6 overflow-x-auto pb-1
-        border-b dark:border-gray-700 scrollbar-none"
+        className={`bg-gradient-to-r ${deptGrad} px-4 sm:px-8 pt-6 pb-16 relative overflow-hidden`}
       >
-        {(
-          [
-            { id: "overview", label: "Overview", icon: "🏠" },
-            { id: "assignments", label: "Assignments", icon: "📝" },
-            { id: "tests", label: "Tests", icon: "📊" },
-            { id: "fees", label: "Fees", icon: "💰" },
-            {
-              id: "chat",
-              label: unreadCount > 0 ? `Chat (${unreadCount})` : "Chat",
-              icon: "💬",
-            },
-            { id: "analytics", label: "Analytics", icon: "📈" },
-          ] as { id: TabId; label: string; icon: string }[]
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg font-medium
-              text-xs sm:text-sm whitespace-nowrap transition-colors shrink-0
-              ${
-                activeTab === tab.id
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
+        {/* decorative blobs */}
+        <div
+          className="absolute -top-10 -right-10 w-48 h-48 rounded-full
+          bg-white/10 blur-2xl pointer-events-none"
+        />
+        <div
+          className="absolute bottom-0 left-1/3 w-32 h-32 rounded-full
+          bg-black/10 blur-xl pointer-events-none"
+        />
+
+        <div className="max-w-5xl mx-auto flex items-center gap-5 relative">
+          {/* Avatar */}
+          <div
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/20
+            backdrop-blur-sm flex items-center justify-center
+            text-white font-black text-2xl sm:text-3xl shrink-0 shadow-lg"
           >
-            <span>{tab.icon}</span>
-            <span>{tab.label}</span>
-          </button>
-        ))}
+            {initial(fullName(student))}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white truncate">
+              {fullName(student)}
+            </h1>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              <span
+                className="bg-white/20 text-white text-xs font-semibold
+                px-3 py-1 rounded-full backdrop-blur-sm"
+              >
+                🎓 {student.student_id}
+              </span>
+              <span
+                className="bg-white/20 text-white text-xs font-semibold
+                px-3 py-1 rounded-full backdrop-blur-sm capitalize"
+              >
+                {student.department} dept
+              </span>
+              {student.student_class && (
+                <span
+                  className="bg-white/20 text-white text-xs font-semibold
+                  px-3 py-1 rounded-full backdrop-blur-sm"
+                >
+                  Class: {student.student_class}
+                </span>
+              )}
+              <span
+                className="bg-white/20 text-white text-xs font-semibold
+                px-3 py-1 rounded-full backdrop-blur-sm"
+              >
+                {current_term} · {current_year}
+              </span>
+            </div>
+          </div>
+          {/* Unread badge */}
+          {unread_messages > 0 && (
+            <button
+              onClick={() => setActiveTab("chat")}
+              className="ml-auto shrink-0 bg-red-500 text-white text-sm
+                font-bold px-3 py-1.5 rounded-full shadow animate-pulse"
+            >
+              💬 {unread_messages}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Tab content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.15 }}
+      {/* ── Tab bar (pulled up over banner) ───────────────────────────────── */}
+      <div className="max-w-5xl mx-auto w-full px-3 -mt-8 relative z-10">
+        <div
+          className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl
+          flex overflow-x-auto scrollbar-none"
         >
-          {activeTab === "overview" && renderOverview()}
-          {activeTab === "assignments" && renderAssignments()}
-          {activeTab === "tests" && renderTests()}
-          {activeTab === "fees" && renderFees()}
-          {activeTab === "chat" && renderChat()}
-          {activeTab === "analytics" && renderAnalytics()}
-        </motion.div>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 min-w-[64px] flex flex-col items-center gap-1
+                py-3 px-2 text-xs font-semibold transition-colors relative
+                ${
+                  activeTab === tab.id
+                    ? "text-teal-600 dark:text-teal-400"
+                    : "text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+            >
+              <span className="text-base">{tab.icon}</span>
+              <span className="hidden sm:block">{tab.label}</span>
+              {activeTab === tab.id && (
+                <motion.div
+                  layoutId="tab-indicator"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-500 rounded-full"
+                />
+              )}
+              {tab.id === "chat" && unread_messages > 0 && (
+                <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-red-500" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Toast ──────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key="toast"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl
+              shadow-lg text-sm font-medium max-w-sm
+              ${
+                toast.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+              }`}
+          >
+            {toast.ok ? "✅" : "❌"} {toast.msg}
+          </motion.div>
+        )}
       </AnimatePresence>
+
+      {/* ── Main content ────────────────────────────────────────────────────── */}
+      <main className="max-w-5xl mx-auto w-full px-3 sm:px-4 py-6 flex-1">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.15 }}
+          >
+            {/* ══ HOME ════════════════════════════════════════════════════════ */}
+            {activeTab === "home" && (
+              <div className="space-y-5">
+                {/* Quick stat cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    {
+                      label: "Enrolled",
+                      value: enrollments.filter((e) => e.status === "active")
+                        .length,
+                      icon: "📚",
+                      color:
+                        "bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300",
+                    },
+                    {
+                      label: "Assignments",
+                      value: assignments.length,
+                      icon: "📝",
+                      color:
+                        "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300",
+                    },
+                    {
+                      label: "Add/Drop Left",
+                      value: add_drop_remaining,
+                      icon: "🔄",
+                      color:
+                        add_drop_remaining > 0
+                          ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
+                          : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300",
+                    },
+                    {
+                      label: "Fee Status",
+                      value: fee_status?.status ?? "N/A",
+                      icon: "💳",
+                      color:
+                        FEE_BADGE[fee_status?.status ?? ""] ??
+                        "bg-gray-100 text-gray-600",
+                    },
+                  ].map((s) => (
+                    <div key={s.label} className={`${s.color} rounded-xl p-4`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xl">{s.icon}</span>
+                        <span className="text-2xl font-black">{s.value}</span>
+                      </div>
+                      <p className="text-xs font-medium opacity-80">
+                        {s.label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Announcements / News */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-5">
+                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-4">
+                    📢 Latest Announcements
+                  </h2>
+                  {announcements.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">
+                      No announcements yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {announcements.map((a) => (
+                        <div
+                          key={a.id}
+                          className="flex items-start gap-3 p-3 rounded-xl
+                            bg-slate-50 dark:bg-slate-700/40"
+                        >
+                          <span className="text-xl mt-0.5">
+                            {a.type === "assignment" ? "📝" : "📣"}
+                          </span>
+                          <div className="min-w-0">
+                            <p
+                              className="text-sm font-semibold text-slate-800
+                              dark:text-slate-100 truncate"
+                            >
+                              {a.title}
+                            </p>
+                            {a.course && (
+                              <p className="text-xs text-teal-600 dark:text-teal-400">
+                                {a.course}
+                              </p>
+                            )}
+                            {a.body && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+                                {a.body}
+                              </p>
+                            )}
+                            {a.due && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                Due {fmtDate(a.due)}
+                                {daysUntil(a.due) >= 0 &&
+                                  ` · ${daysUntil(a.due)}d left`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Current courses quick list */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                      📖 My Courses This Term
+                    </h2>
+                    <button
+                      onClick={() => setActiveTab("courses")}
+                      className="text-xs text-teal-600 dark:text-teal-400
+                        font-medium hover:underline"
+                    >
+                      Manage →
+                    </button>
+                  </div>
+                  {enrollments.filter((e) => e.status === "active").length ===
+                  0 ? (
+                    <p className="text-sm text-slate-400 text-center py-4">
+                      No active enrolments. Go to Courses to enrol.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {enrollments
+                        .filter((e) => e.status === "active")
+                        .map((e) => (
+                          <div
+                            key={e.id}
+                            className="flex items-center justify-between px-3 py-2.5
+                            rounded-xl bg-slate-50 dark:bg-slate-700/40"
+                          >
+                            <div>
+                              <p
+                                className="text-sm font-semibold text-slate-800
+                              dark:text-slate-100"
+                              >
+                                {e.course_title}
+                              </p>
+                              {e.instructor_name && (
+                                <p className="text-xs text-slate-400">
+                                  {e.instructor_name}
+                                </p>
+                              )}
+                            </div>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full font-medium
+                            ${STATUS_BADGE[e.status] ?? ""}`}
+                            >
+                              {e.status}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Fee alert */}
+                {fee_status && fee_status.status !== "paid" && (
+                  <div
+                    className={`rounded-2xl p-4 border flex items-start gap-3
+                    ${
+                      fee_status.status === "overdue"
+                        ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                        : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                    }`}
+                  >
+                    <span className="text-2xl">⚠️</span>
+                    <div>
+                      <p className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                        {fee_status.status === "overdue"
+                          ? "Fee Overdue!"
+                          : "Outstanding Balance"}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        Balance: ₦{Number(fee_status.balance).toLocaleString()}{" "}
+                        · Due {fmtDate(fee_status.due_date)}
+                      </p>
+                      <button
+                        onClick={() => setActiveTab("fees")}
+                        className="mt-2 text-xs font-semibold text-teal-600
+                          dark:text-teal-400 hover:underline"
+                      >
+                        View fee details →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══ COURSES ══════════════════════════════════════════════════════ */}
+            {activeTab === "courses" && (
+              <div className="space-y-4">
+                {/* Add/drop limit indicator */}
+                <div
+                  className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-4
+                  flex items-center gap-4"
+                >
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                      Add / Drop Allowance — {current_term}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {add_drop_used} of 2 changes used · {add_drop_remaining}{" "}
+                      remaining
+                    </p>
+                    <div className="mt-2 h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all
+                        ${
+                          add_drop_remaining === 0
+                            ? "bg-red-500"
+                            : add_drop_remaining === 1
+                              ? "bg-amber-400"
+                              : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${(add_drop_used / 2) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span
+                    className={`text-3xl font-black
+                    ${add_drop_remaining === 0 ? "text-red-500" : "text-emerald-500"}`}
+                  >
+                    {add_drop_remaining}
+                  </span>
+                </div>
+
+                {/* Filter */}
+                <div className="flex gap-2">
+                  {(["all", "enrolled", "available"] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setCourseFilter(f)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-semibold
+                        transition-colors capitalize
+                        ${
+                          courseFilter === f
+                            ? "bg-teal-600 text-white"
+                            : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                        }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Course cards */}
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {filteredCourses.map((c) => {
+                    const busy = addDropBusy === c.id;
+                    return (
+                      <motion.div
+                        key={c.id}
+                        layout
+                        className={`bg-white dark:bg-slate-800 rounded-2xl
+                          shadow-sm p-5 border-2 transition-colors
+                          ${
+                            c.is_enrolled
+                              ? "border-teal-400 dark:border-teal-600"
+                              : "border-transparent"
+                          }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3
+                            className="font-bold text-slate-800 dark:text-slate-100
+                            leading-tight"
+                          >
+                            {c.title}
+                          </h3>
+                          {c.is_enrolled && (
+                            <span
+                              className="shrink-0 text-xs bg-teal-100
+                              dark:bg-teal-900/40 text-teal-700 dark:text-teal-300
+                              px-2 py-0.5 rounded-full font-medium"
+                            >
+                              Enrolled
+                            </span>
+                          )}
+                        </div>
+                        {c.description && (
+                          <p className="text-xs text-slate-400 mb-3 line-clamp-2">
+                            {c.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {c.instructor_name && (
+                            <span
+                              className="text-xs bg-slate-100 dark:bg-slate-700
+                              text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full"
+                            >
+                              👨‍🏫 {c.instructor_name}
+                            </span>
+                          )}
+                          <span
+                            className="text-xs bg-slate-100 dark:bg-slate-700
+                            text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full"
+                          >
+                            👥 {c.total_students} students
+                          </span>
+                        </div>
+                        <button
+                          onClick={() =>
+                            c.is_enrolled
+                              ? handleDrop(c.id)
+                              : handleEnroll(c.id)
+                          }
+                          disabled={
+                            busy || (add_drop_remaining <= 0 && !c.is_enrolled)
+                          }
+                          className={`w-full py-2 rounded-xl text-sm font-semibold
+                            transition-colors disabled:opacity-50
+                            ${
+                              c.is_enrolled
+                                ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100"
+                                : add_drop_remaining > 0
+                                  ? "bg-teal-600 hover:bg-teal-700 text-white"
+                                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            }`}
+                        >
+                          {busy
+                            ? "…"
+                            : c.is_enrolled
+                              ? "− Drop Course"
+                              : add_drop_remaining > 0
+                                ? "+ Enrol"
+                                : "Limit Reached"}
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                  {filteredCourses.length === 0 && (
+                    <div className="col-span-2 text-center py-12 text-slate-400">
+                      <p className="text-3xl mb-2">📚</p>
+                      <p className="text-sm">No courses found</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ══ ASSIGNMENTS ══════════════════════════════════════════════════ */}
+            {activeTab === "assignments" && (
+              <div className="space-y-3">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                  📝 Assignments
+                </h2>
+                {assignments.length === 0 ? (
+                  <div className="text-center py-16 text-slate-400">
+                    <p className="text-3xl mb-2">📋</p>
+                    <p className="text-sm">No assignments yet</p>
+                  </div>
+                ) : (
+                  assignments.map((a) => {
+                    const days = daysUntil(a.deadline);
+                    const urgent = days <= 3 && days >= 0;
+                    const overdue = days < 0;
+                    return (
+                      <div
+                        key={a.id}
+                        className={`bg-white dark:bg-slate-800 rounded-2xl
+                          shadow-sm p-5 border-l-4
+                          ${
+                            overdue
+                              ? "border-red-400"
+                              : urgent
+                                ? "border-amber-400"
+                                : "border-teal-400"
+                          }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-800 dark:text-slate-100 truncate">
+                              {a.title}
+                            </p>
+                            <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">
+                              {a.course_title ?? `Course #${a.course}`}
+                            </p>
+                            {a.description && (
+                              <p
+                                className="text-sm text-slate-500 dark:text-slate-400
+                                mt-1.5 line-clamp-2"
+                              >
+                                {a.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span
+                              className={`text-xs font-bold px-2.5 py-1 rounded-full
+                              ${
+                                overdue
+                                  ? "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400"
+                                  : urgent
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                                    : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"
+                              }`}
+                            >
+                              {overdue
+                                ? "⚠️ Overdue"
+                                : days === 0
+                                  ? "🔥 Today"
+                                  : `${days}d left`}
+                            </span>
+                            <p className="text-xs text-slate-400 mt-1">
+                              Due {fmtDate(a.deadline)}
+                            </p>
+                            {a.max_score && (
+                              <p className="text-xs text-slate-400">
+                                Max: {a.max_score}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {/* ══ RESULTS ══════════════════════════════════════════════════════ */}
+            {activeTab === "results" && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                  📊 My Results
+                </h2>
+                {enrollments.length === 0 ? (
+                  <div className="text-center py-16 text-slate-400">
+                    <p className="text-3xl mb-2">📊</p>
+                    <p className="text-sm">No results available yet</p>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 dark:bg-slate-700 text-xs uppercase">
+                        <tr>
+                          {[
+                            "Course",
+                            "Instructor",
+                            "Status",
+                            "Term",
+                            "Year",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-4 py-3 text-left font-semibold
+                              text-slate-600 dark:text-slate-300"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {enrollments.map((e) => (
+                          <tr
+                            key={e.id}
+                            className="hover:bg-slate-50 dark:hover:bg-slate-700/40
+                              transition-colors"
+                          >
+                            <td
+                              className="px-4 py-3 font-medium text-slate-800
+                              dark:text-slate-100"
+                            >
+                              {e.course_title}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                              {e.instructor_name ?? "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium
+                                ${STATUS_BADGE[e.status] ?? ""}`}
+                              >
+                                {e.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                              {e.term}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                              {e.academic_year}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══ FEES ═════════════════════════════════════════════════════════ */}
+            {activeTab === "fees" && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                  💳 School Fees
+                </h2>
+
+                {!fee_status ? (
+                  <div
+                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-10
+                    text-center text-slate-400"
+                  >
+                    <p className="text-3xl mb-2">✅</p>
+                    <p className="font-semibold">No fee record for this term</p>
+                    <p className="text-xs mt-1">
+                      Contact admin if you believe this is an error
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
+                    {/* Status badge */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <p className="text-sm text-slate-400">
+                          {current_term} · {current_year}
+                        </p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100 mt-0.5">
+                          Fee Statement
+                        </p>
+                      </div>
+                      <span
+                        className={`text-sm font-bold px-4 py-1.5 rounded-full capitalize
+                        ${FEE_BADGE[fee_status.status]}`}
+                      >
+                        {fee_status.status}
+                      </span>
+                    </div>
+
+                    {/* Fee breakdown */}
+                    <div className="space-y-3 mb-6">
+                      {[
+                        {
+                          label: "Total Amount",
+                          value: `₦${Number(fee_status.total_amount).toLocaleString()}`,
+                          bold: false,
+                        },
+                        {
+                          label: "Amount Paid",
+                          value: `₦${Number(fee_status.amount_paid).toLocaleString()}`,
+                          bold: false,
+                        },
+                        {
+                          label: "Balance Due",
+                          value: `₦${Number(fee_status.balance).toLocaleString()}`,
+                          bold: true,
+                        },
+                      ].map((r) => (
+                        <div
+                          key={r.label}
+                          className="flex justify-between items-center py-2.5
+                            border-b border-slate-100 dark:border-slate-700"
+                        >
+                          <span className="text-sm text-slate-500 dark:text-slate-400">
+                            {r.label}
+                          </span>
+                          <span
+                            className={`text-sm ${
+                              r.bold
+                                ? "font-black text-slate-800 dark:text-slate-100"
+                                : "font-medium text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {r.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Payment progress */}
+                    <div className="mb-4">
+                      <div className="flex justify-between text-xs text-slate-400 mb-1.5">
+                        <span>Payment progress</span>
+                        <span>
+                          {Math.round(
+                            (Number(fee_status.amount_paid) /
+                              Number(fee_status.total_amount)) *
+                              100,
+                          )}
+                          %
+                        </span>
+                      </div>
+                      <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all
+                          ${
+                            fee_status.status === "paid"
+                              ? "bg-emerald-500"
+                              : fee_status.status === "overdue"
+                                ? "bg-red-500"
+                                : "bg-amber-400"
+                          }`}
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              (Number(fee_status.amount_paid) /
+                                Number(fee_status.total_amount)) *
+                                100,
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-400">
+                      Due date: {fmtDate(fee_status.due_date)}
+                      {fee_status.status !== "paid" && (
+                        <span className="ml-2 text-amber-500 font-medium">
+                          · Contact admin to make payment
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══ CHAT ═════════════════════════════════════════════════════════ */}
+            {activeTab === "chat" && (
+              <div className="flex gap-4 h-[500px]">
+                {/* Thread list */}
+                <div
+                  className={`${activeThread ? "hidden sm:flex" : "flex"} flex-col
+                  w-full sm:w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-sm
+                  overflow-hidden`}
+                >
+                  <div className="p-4 border-b dark:border-slate-700">
+                    <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                      💬 Messages
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {threads.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center p-6">
+                        No conversations yet. Message an instructor from the
+                        Teachers tab.
+                      </p>
+                    ) : (
+                      threads.map((t) => (
+                        <button
+                          key={t.user_id}
+                          onClick={() => setActiveThread(t)}
+                          className={`w-full flex items-center gap-3 px-4 py-3
+                            text-left hover:bg-slate-50 dark:hover:bg-slate-700/50
+                            transition-colors border-b dark:border-slate-700/50
+                            ${
+                              activeThread?.user_id === t.user_id
+                                ? "bg-teal-50 dark:bg-teal-900/20"
+                                : ""
+                            }`}
+                        >
+                          <div
+                            className="w-9 h-9 rounded-full bg-gradient-to-br
+                            from-teal-500 to-indigo-600 flex items-center justify-center
+                            text-white font-bold text-sm shrink-0"
+                          >
+                            {initial(t.name)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <p
+                                className="text-xs font-semibold text-slate-800
+                                dark:text-slate-100 truncate"
+                              >
+                                {t.name}
+                              </p>
+                              {t.unread > 0 && (
+                                <span
+                                  className="shrink-0 w-4 h-4 rounded-full bg-red-500
+                                  text-white text-[10px] flex items-center justify-center font-bold"
+                                >
+                                  {t.unread}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 truncate mt-0.5">
+                              {t.last_message ?? "No messages yet"}
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Message window */}
+                {activeThread ? (
+                  <div
+                    className="flex-1 flex flex-col bg-white dark:bg-slate-800
+                    rounded-2xl shadow-sm overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div
+                      className="flex items-center gap-3 px-4 py-3
+                      border-b dark:border-slate-700"
+                    >
+                      <button
+                        onClick={() => setActiveThread(null)}
+                        className="sm:hidden text-slate-400 hover:text-slate-600 mr-1"
+                      >
+                        ←
+                      </button>
+                      <div
+                        className="w-8 h-8 rounded-full bg-gradient-to-br
+                        from-teal-500 to-indigo-600 flex items-center justify-center
+                        text-white font-bold text-sm shrink-0"
+                      >
+                        {initial(activeThread.name)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                          {activeThread.name}
+                        </p>
+                        <p className="text-xs text-slate-400 capitalize">
+                          {activeThread.role}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {chatLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div
+                            className="w-6 h-6 border-2 border-teal-500
+                            border-t-transparent rounded-full animate-spin"
+                          />
+                        </div>
+                      ) : messages.length === 0 ? (
+                        <p className="text-center text-xs text-slate-400 py-8">
+                          Start the conversation
+                        </p>
+                      ) : (
+                        messages.map((m) => {
+                          const mine = m.sender !== activeThread.user_id;
+                          return (
+                            <div
+                              key={m.id}
+                              className={`flex ${mine ? "justify-end" : "justify-start"}`}
+                            >
+                              <div
+                                className={`max-w-xs px-4 py-2.5 rounded-2xl text-sm
+                                ${
+                                  mine
+                                    ? "bg-teal-600 text-white rounded-br-sm"
+                                    : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-sm"
+                                }`}
+                              >
+                                <p>{m.message}</p>
+                                <p
+                                  className={`text-xs mt-1 ${mine ? "text-teal-200" : "text-slate-400"}`}
+                                >
+                                  {fmtTime(m.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={msgEndRef} />
+                    </div>
+                    {/* Input */}
+                    <div className="p-3 border-t dark:border-slate-700 flex gap-2">
+                      <input
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && !e.shiftKey && sendMessage()
+                        }
+                        placeholder="Type a message…"
+                        className="flex-1 px-4 py-2.5 text-sm rounded-xl border
+                          border-slate-200 dark:border-slate-600
+                          bg-slate-50 dark:bg-slate-700
+                          text-slate-800 dark:text-slate-100
+                          focus:outline-none focus:ring-2 focus:ring-teal-500
+                          placeholder:text-slate-400"
+                      />
+                      <button
+                        onClick={sendMessage}
+                        disabled={!chatInput.trim()}
+                        className="px-4 py-2.5 rounded-xl bg-teal-600
+                          hover:bg-teal-700 disabled:bg-slate-200 dark:disabled:bg-slate-700
+                          text-white disabled:text-slate-400 transition-colors text-sm font-medium"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="hidden sm:flex flex-1 items-center justify-center
+                    bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-slate-400"
+                  >
+                    <div className="text-center">
+                      <p className="text-3xl mb-2">💬</p>
+                      <p className="text-sm">Select a conversation</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══ INSTRUCTORS ══════════════════════════════════════════════════ */}
+            {activeTab === "instructors" && (
+              <div className="space-y-3">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                  👨‍🏫 My Teachers & Instructors
+                </h2>
+                {instructors.length === 0 ? (
+                  <div className="text-center py-16 text-slate-400">
+                    <p className="text-3xl mb-2">👨‍🏫</p>
+                    <p className="text-sm">
+                      No instructors linked to your courses yet
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {instructors.map((ins) => (
+                      <div
+                        key={ins.id}
+                        className="bg-white dark:bg-slate-800 rounded-2xl
+                          shadow-sm p-5 flex items-start gap-4"
+                      >
+                        <div
+                          className="w-12 h-12 rounded-xl bg-gradient-to-br
+                          from-indigo-500 to-violet-600 flex items-center justify-center
+                          text-white font-black text-lg shrink-0"
+                        >
+                          {initial(ins.full_name)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-800 dark:text-slate-100">
+                            {ins.full_name}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            @{ins.username}
+                            {ins.instructor_type &&
+                              ` · ${ins.instructor_type} instructor`}
+                          </p>
+                          {ins.course_titles.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {ins.course_titles.map((t) => (
+                                <span
+                                  key={t}
+                                  className="text-xs bg-teal-50 dark:bg-teal-900/30
+                                    text-teal-700 dark:text-teal-300
+                                    px-2 py-0.5 rounded-full"
+                                >
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => {
+                              // Start chat with this instructor
+                              setActiveThread({
+                                user_id: ins.id,
+                                name: ins.full_name,
+                                role: ins.instructor_type ?? "instructor",
+                                unread: 0,
+                              });
+                              setActiveTab("chat");
+                            }}
+                            className="mt-3 flex items-center gap-1.5 text-xs
+                              font-semibold text-teal-600 dark:text-teal-400
+                              hover:underline"
+                          >
+                            💬 Send message
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add/drop history */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-5 mt-4">
+                  <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 text-sm">
+                    🔄 Add / Drop History
+                  </h3>
+                  {allEnrollments.flatMap((e) => e.drop_history ?? [])
+                    .length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      No add/drop activity yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {allEnrollments
+                        .flatMap((e) =>
+                          (e.drop_history ?? []).map((ev, i) => ({
+                            ...ev,
+                            key: `${e.id}-${i}`,
+                            term: e.term,
+                            year: e.academic_year,
+                          })),
+                        )
+                        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+                        .map((ev) => (
+                          <div
+                            key={ev.key}
+                            className="flex items-center gap-3 px-3 py-2 rounded-xl
+                            bg-slate-50 dark:bg-slate-700/40"
+                          >
+                            <span
+                              className={`text-sm ${ev.action === "add" ? "text-emerald-500" : "text-red-400"}`}
+                            >
+                              {ev.action === "add" ? "➕" : "➖"}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+                                {ev.action === "add" ? "Added" : "Dropped"}:{" "}
+                                {ev.course_title}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {(ev as any).term} · {(ev as any).year}
+                              </p>
+                            </div>
+                            <span className="text-xs text-slate-400 shrink-0">
+                              {fmtDate(ev.timestamp)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </main>
     </div>
   );
 };
