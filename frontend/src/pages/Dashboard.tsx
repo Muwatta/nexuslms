@@ -9,7 +9,6 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch user profile to get department
     api
       .get("/profiles/")
       .then((res) => {
@@ -33,7 +32,6 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // Route to department-specific dashboard
   switch (department) {
     case "arabic":
       return <ArabicDashboard />;

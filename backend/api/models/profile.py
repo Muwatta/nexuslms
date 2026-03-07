@@ -56,10 +56,10 @@ class Profile(TimeStampedModel):
     
     bio = models.TextField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    address = models.TextField(blank=True, default="")
     parent_email = models.EmailField(blank=True)
     student_id = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
     
-    # Soft delete fields
     is_archived = models.BooleanField(default=False, db_index=True)
     archived_at = models.DateTimeField(null=True, blank=True)
     archived_by = models.ForeignKey(
@@ -90,7 +90,6 @@ class Profile(TimeStampedModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         
-        # Generate sequential student ID
         if self.role == "student" and not self.student_id and not self.is_archived:
             from .studentidsequence import StudentIDSequence
             year = timezone.now().year % 100

@@ -3,200 +3,260 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import PermissionDenied
 
-from api.models import Profile, Assignment, Enrollment
+from api.models import Profile, Assignment, Enrollment, Course
 from api.serializers import ProfileSerializer, AssignmentSerializer, EnrollmentSerializer
 from api.permissions import IsClassInstructor, IsSubjectInstructor, IsInstructor, IsAdminOrClassInstructor
 
 
+def _get_instructor_profile(user):
+    """Helper — returns profile or None."""
+    try:
+        return user.profile
+    except Profile.DoesNotExist:
+        return None
+
+
 class InstructorProfileViewSet(ReadOnlyModelViewSet):
-    """ViewSet for instructors to view profiles based on their type."""
+    """
+    Instructors see students relevant to them:
+    - Class instructor  → all students in their department
+    - Subject instructor → students enrolled in ANY of their courses
+                          fallback: all department students if no enrollments yet
+    """
     serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated, IsInstructor]
 
     def get_queryset(self):
-        user = self.request.user
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
+        profile = _get_instructor_profile(self.request.user)
+        if not profile:
             return Profile.objects.none()
 
         if profile.instructor_type == "class":
-            # Class instructors can see all students and instructors in their department
-            return Profile.objects.filter(department=profile.department)
-        elif profile.instructor_type == "subject":
-            # Subject instructors can see students enrolled in their subjects
-            # For now, return all students in their department
-            # This should be filtered by actual subject assignments in the future
             return Profile.objects.filter(
                 department=profile.department,
-                role="student"
-            )
+                role__iexact="student",
+                is_archived=False,
+            ).select_related("user")
+
+        if profile.instructor_type == "subject":
+            # All courses this instructor teaches (any dept)
+            instructor_courses = Course.objects.filter(instructor=profile)
+
+            # Students enrolled in those courses (active OR pending)
+            enrolled_ids = Enrollment.objects.filter(
+                course__in=instructor_courses,
+                status__in=["active", "pending"],
+            ).values_list("student_id", flat=True).distinct()
+
+            if enrolled_ids:
+                return Profile.objects.filter(
+                    id__in=enrolled_ids,
+                    is_archived=False,
+                ).select_related("user")
+
+            # ── Fallback: no enrollments yet → show all dept students ──
+            # This lets instructors see their potential students even before
+            # enrollments exist, so the UI never looks empty wrongly.
+            return Profile.objects.filter(
+                department=profile.department,
+                role__iexact="student",
+                is_archived=False,
+            ).select_related("user")
+
         return Profile.objects.none()
 
 
 class InstructorAssignmentViewSet(ModelViewSet):
-    """ViewSet for instructors to manage assignments."""
+    """Instructors manage assignments for their courses."""
     serializer_class = AssignmentSerializer
     permission_classes = [IsAuthenticated, IsInstructor]
 
     def get_queryset(self):
-        user = self.request.user
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
+        profile = _get_instructor_profile(self.request.user)
+        if not profile:
             return Assignment.objects.none()
 
-        # Instructors can only see/manage assignments in their department
-        return Assignment.objects.filter(course__department=profile.department)
+        # Primary: assignments for courses this instructor owns
+        qs = Assignment.objects.filter(course__instructor=profile)
+        if qs.exists():
+            return qs
+
+        # Fallback: any assignment in their department
+        try:
+            return Assignment.objects.filter(course__department=profile.department)
+        except Exception:
+            return Assignment.objects.none()
 
     def perform_create(self, serializer):
-        user = self.request.user
+        profile = _get_instructor_profile(self.request.user)
+        if not profile:
+            raise PermissionDenied("Profile not found.")
+
+        course = serializer.validated_data.get("course")
+        if course:
+            course_dept = getattr(course, "department", None)
+            if course_dept and course_dept != profile.department:
+                raise PermissionDenied("Cannot create assignments outside your department.")
+
+        serializer.save(created_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"error": "Validation failed", "details": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
-            profile = user.profile
-        except Profile.DoesNotExist:
-            raise PermissionError("Profile not found")
-
-        # Ensure assignment is created in instructor's department
-        course = serializer.validated_data.get('course')
-        if course and course.department != profile.department:
-            raise PermissionError("Cannot create assignments outside your department")
-
-        serializer.save(created_by=user)
+            self.perform_create(serializer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED,
+                            headers=self.get_success_headers(serializer.data))
+        except PermissionDenied as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"error": "Failed to create assignment", "detail": str(e)},
+                            status=status.HTTP_400_BAD_REQUEST)
 
 
 class InstructorStudentManagementViewSet(ModelViewSet):
-    """ViewSet for class instructors to manage students."""
+    """Class instructors (and admins) manage students."""
     serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated, IsAdminOrClassInstructor]
 
     def get_queryset(self):
-        user = self.request.user
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
+        profile = _get_instructor_profile(self.request.user)
+        if not profile:
             return Profile.objects.none()
 
-        # Only class instructors can manage students
-        if profile.role == "instructor" and profile.instructor_type == "class":
+        role = (profile.role or "").lower()
+        itype = (profile.instructor_type or "").lower()
+
+        if role in ("admin", "super_admin"):
+            return Profile.objects.filter(
+                role__iexact="student", is_archived=False
+            ).select_related("user")
+
+        if role == "instructor" and itype == "class":
             return Profile.objects.filter(
                 department=profile.department,
-                role="student"
-            )
-        elif profile.role in ["admin", "super_admin"]:
-            return Profile.objects.filter(role="student")
+                role__iexact="student",
+                is_archived=False,
+            ).select_related("user")
 
         return Profile.objects.none()
 
     def perform_create(self, serializer):
-        """Only class instructors and admins can create students."""
-        user = self.request.user
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
-            raise PermissionError("Profile not found")
+        profile = _get_instructor_profile(self.request.user)
+        if not profile:
+            raise PermissionDenied("Profile not found.")
+        student = serializer.save(department=profile.department, role="student")
+        self._auto_enroll(student, profile.department)
 
-        # Set department to match instructor's department
-        serializer.save(
-            department=profile.department,
-            role="student"
-        )
+    def _auto_enroll(self, student_profile, department):
+        from django.utils import timezone
+        year = f"{timezone.now().year}/{timezone.now().year + 1}"
+        courses = Course.objects.filter(department=department, is_active=True)
+        if student_profile.student_class:
+            courses = courses.filter(student_class=student_profile.student_class)
+        for course in courses:
+            Enrollment.objects.get_or_create(
+                student=student_profile, course=course, academic_year=year,
+                defaults={"status": "active", "enrolled_at": timezone.now()},
+            )
 
     def perform_update(self, serializer):
-        """Only class instructors and admins can update students."""
         instance = serializer.save()
-
-        # Update user fields if provided
-        user_fields = {}
-        if 'first_name' in self.request.data:
-            user_fields['first_name'] = self.request.data.get('first_name')
-        if 'last_name' in self.request.data:
-            user_fields['last_name'] = self.request.data.get('last_name')
+        user_fields = {
+            k: self.request.data[k]
+            for k in ("first_name", "last_name")
+            if k in self.request.data
+        }
         if user_fields:
             for attr, val in user_fields.items():
                 setattr(instance.user, attr, val)
             instance.user.save()
 
     def perform_destroy(self, instance):
-        """Only admins can delete students, not instructors."""
-        user = self.request.user
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
-            raise PermissionError("Profile not found")
-
-        if profile.role not in ["admin", "super_admin"]:
-            raise PermissionError("Only administrators can delete student profiles")
-
+        profile = _get_instructor_profile(self.request.user)
+        if not profile or (profile.role or "").lower() not in ("admin", "super_admin"):
+            raise PermissionDenied("Only administrators can delete student profiles.")
         instance.delete()
+
+    @action(detail=False, methods=["get"])
+    def by_class(self, request):
+        profile = _get_instructor_profile(request.user)
+        if not profile:
+            return Response({"error": "Profile not found"}, status=403)
+
+        dept = profile.department
+        class_choices = Profile.get_classes_for_department(dept)
+        students_qs = Profile.objects.filter(
+            department=dept, role__iexact="student", is_archived=False
+        ).select_related("user")
+
+        result = {}
+        for code, name in class_choices:
+            cls_students = students_qs.filter(student_class=code)
+            result[name] = {
+                "code": code,
+                "count": cls_students.count(),
+                "students": ProfileSerializer(cls_students, many=True).data,
+            }
+        return Response({"department": dept, "classes": result})
 
 
 class InstructorResultsViewSet(ReadOnlyModelViewSet):
-    """ViewSet for instructors to view student results."""
+    """Instructors view student results/enrollments."""
     serializer_class = EnrollmentSerializer
     permission_classes = [IsAuthenticated, IsInstructor]
 
     def get_queryset(self):
-        user = self.request.user
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
+        profile = _get_instructor_profile(self.request.user)
+        if not profile:
             return Enrollment.objects.none()
 
         if profile.instructor_type == "class":
-            # Class instructors can see all enrollments in their department
             return Enrollment.objects.filter(
-                course__department=profile.department
-            ).select_related('student', 'course')
-        elif profile.instructor_type == "subject":
-            # Subject instructors can see enrollments for their subjects
-            # For now, return all enrollments in their department
-            # This should be filtered by actual subject assignments in the future
+                student__department=profile.department,
+            ).select_related("student__user", "course")
+
+        if profile.instructor_type == "subject":
+            # Results for courses this instructor teaches
+            qs = Enrollment.objects.filter(
+                course__instructor=profile,
+                student__is_archived=False,
+            ).select_related("student__user", "course")
+            if qs.exists():
+                return qs
+            # Fallback: dept-wide
             return Enrollment.objects.filter(
-                course__department=profile.department
-            ).select_related('student', 'course')
+                student__department=profile.department,
+                student__is_archived=False,
+            ).select_related("student__user", "course")
 
         return Enrollment.objects.none()
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsInstructor])
+    @action(detail=True, methods=["post"])
     def update_result(self, request, pk=None):
-        """Allow instructors to update student results."""
         enrollment = self.get_object()
-        user = request.user
+        profile = _get_instructor_profile(request.user)
+        if not profile:
+            return Response({"error": "Profile not found"}, status=403)
 
-        try:
-            profile = user.profile
-        except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Check if instructor can update this enrollment
-        if enrollment.course.department != profile.department:
-            return Response(
-                {"error": "Cannot update results outside your department"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Validate score fields (0-100)
-        score_fields = ['first_test_score', 'second_test_score', 'attendance_score', 'assignment_score']
+        score_fields = [
+            "first_test_score", "second_test_score",
+            "attendance_score", "assignment_score",
+        ]
         for field in score_fields:
             if field in request.data:
-                score = request.data[field]
-                if score is not None and (score < 0 or score > 100):
+                val = request.data[field]
+                if val is not None and not (0 <= float(val) <= 100):
                     return Response(
                         {"error": f"{field} must be between 0 and 100"},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
-
-        # Update the enrollment
-        for field in score_fields:
-            if field in request.data:
-                setattr(enrollment, field, request.data[field])
-
+                setattr(enrollment, field, val)
         enrollment.save()
-
-        serializer = self.get_serializer(enrollment)
-        return Response(serializer.data)
+        return Response(self.get_serializer(enrollment).data)

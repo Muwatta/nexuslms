@@ -26,7 +26,18 @@ class Enrollment(TimeStampedModel):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     enrolled_at = models.DateTimeField(default=timezone.now)
     completed_at = models.DateTimeField(null=True, blank=True)
-    
+        # Term tracking
+    term = models.CharField(
+        max_length=20,
+        default='First Term',
+        choices=[
+            ('First Term',  'First Term'),
+            ('Second Term', 'Second Term'),
+            ('Third Term',  'Third Term'),
+        ],
+    )
+    add_drop_count = models.PositiveSmallIntegerField(default=0)
+    drop_history = models.JSONField(default=list, blank=True)
     # Promotion tracking
     promoted_from = models.ForeignKey(
         'self',
@@ -47,8 +58,8 @@ class Enrollment(TimeStampedModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['student', 'course', 'academic_year'],
-                name='unique_enrollment_per_year'
+                fields=['student', 'course', 'academic_year', 'term'],
+                name='unique_enrollment_per_year_term',
             )
         ]
         ordering = ['-academic_year', '-enrolled_at']

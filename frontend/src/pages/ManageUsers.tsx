@@ -1,692 +1,1077 @@
-import React, { useEffect, useState } from "react";
-import api from "../api";
+import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import api from "../api";
 import BackButton from "../components/BackButton";
-import AnimatedButton from "../components/AnimatedButton";
 
-interface Profile {
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface ApiUser {
   id: number;
-  user: {
-    id: number;
-    username: string;
-    first_name?: string;
-    last_name?: string;
-  };
-  role: string;
-  instructor_type?: string;
-  department: string;
-  student_class?: string;
-  student_id?: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  email: string;
 }
 
-const ManageUsers: React.FC = () => {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [selected, setSelected] = useState<number[]>([]);
-  const [me, setMe] = useState<any>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [filterRole, setFilterRole] = useState<string>("all");
-  const [filterDept, setFilterDept] = useState<string>("all");
-  const [newUser, setNewUser] = useState({
-    username: "",
-    password: "",
-    first_name: "",
-    last_name: "",
-    role: "student",
-    department: "western",
-    student_class: "JSS1",
-    instructor_type: "",
+interface UserProfile {
+  id: number;
+  user: ApiUser;
+  role: string;
+  department: string;
+  student_class?: string;
+  instructor_type?: string;
+  student_id?: string;
+  bio?: string;
+  phone?: string;
+  address?: string;
+  parent_email?: string;
+  is_archived: boolean;
+  created_at: string;
+}
+
+interface Stats {
+  total: number;
+  students: number;
+  instructors: number;
+  admins: number;
+  parents: number;
+  western: number;
+  arabic: number;
+  programming: number;
+}
+
+interface FormData {
+  username: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: string;
+  department: string;
+  student_class: string;
+  instructor_type: string;
+  bio: string;
+  phone: string;
+  address: string;
+  parent_email: string;
+}
+
+const BLANK_FORM: FormData = {
+  username: "",
+  password: "",
+  first_name: "",
+  last_name: "",
+  email: "",
+  role: "student",
+  department: "western",
+  student_class: "JSS1",
+  instructor_type: "",
+  bio: "",
+  phone: "",
+  address: "",
+  parent_email: "",
+};
+
+// ─── Static colour maps — no dynamic Tailwind classes ────────────────────────
+const ROLE_BADGE: Record<string, string> = {
+  super_admin: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
+  admin:
+    "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300",
+  school_admin:
+    "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+  instructor:
+    "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300",
+  teacher: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+  student:
+    "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
+  parent: "bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300",
+};
+
+// ─── Parse DRF error response into a readable string ─────────────────────────
+const parseError = (err: any): string => {
+  const data = err?.response?.data;
+  if (!data) return err?.message ?? "Unknown error";
+  if (typeof data === "string") return data;
+  if (data.detail) return String(data.detail);
+  const msgs: string[] = [];
+  Object.entries(data).forEach(([field, val]) => {
+    const list = Array.isArray(val) ? val : [val];
+    list.forEach((m) => msgs.push(`${field}: ${m}`));
   });
+  return msgs.join(" · ") || "Request failed";
+};
+
+// ─── Reusable input components ────────────────────────────────────────────────
+const inputCls = `w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600
+  rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+  focus:outline-none focus:ring-2 focus:ring-teal-500
+  disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-gray-400`;
+
+const labelCls =
+  "block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1";
+
+// ─── Component ────────────────────────────────────────────────────────────────
+const ManageUsers: React.FC = () => {
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<FormData>(BLANK_FORM);
   const [classChoices, setClassChoices] = useState<
     { value: string; label: string }[]
   >([]);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null);
+  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  useEffect(() => {
-    api.get("/profiles/").then((res) => setProfiles(res.data));
-    api.get("/profiles/").then((res) => {
-      if (res.data.length) setMe(res.data[0]);
-    });
-  }, []);
+  // server-side filters
+  const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState("all");
+  const [filterDept, setFilterDept] = useState("all");
 
-  // fetch class choices whenever department changes
-  useEffect(() => {
-    const fetchClasses = async () => {
-      try {
-        const resp = await api.get(
-          `/class-choices/?department=${newUser.department}`,
-        );
-        setClassChoices(resp.data.classes);
-        if (
-          !resp.data.classes.find((c: any) => c.value === newUser.student_class)
-        ) {
-          setNewUser((u) => ({
-            ...u,
-            student_class: resp.data.classes[0]?.value || "",
-          }));
-        }
-      } catch (e) {}
-    };
-    if (newUser.role === "student") fetchClasses();
-  }, [newUser.department, newUser.role]);
-
-  const toggleSelect = (id: number) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+  // ── Toast ────────────────────────────────────────────────────────────
+  const notify = (ok: boolean, msg: string) => {
+    setToast({ ok, msg });
+    setTimeout(() => setToast(null), 4500);
   };
 
-  const handleSyncGroups = async () => {
-    if (selected.length === 0) return;
+  // ── Fetch users (server-filtered) ────────────────────────────────────
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (filterRole !== "all") params.role = filterRole;
+      if (filterDept !== "all") params.department = filterDept;
+      if (search.trim()) params.search = search.trim();
+      if (showArchived) params.archived = "true";
+
+      const [usersRes, statsRes] = await Promise.allSettled([
+        api.get("/admin/users/", { params }),
+        api.get("/admin/users/stats/"),
+      ]);
+
+      if (usersRes.status === "fulfilled") {
+        const d = usersRes.value.data;
+        setProfiles(Array.isArray(d) ? d : (d?.results ?? []));
+      }
+      if (statsRes.status === "fulfilled") {
+        setStats(statsRes.value.data);
+      }
+    } catch {
+      notify(false, "Failed to load users");
+    } finally {
+      setLoading(false);
+    }
+  }, [filterRole, filterDept, search, showArchived]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // ── Class choices (for student form) ─────────────────────────────────
+  useEffect(() => {
+    if (form.role !== "student") return;
+    api
+      .get(`/class-choices/?department=${form.department}`)
+      .then((res) => {
+        const cls = res.data.classes ?? [];
+        setClassChoices(cls);
+        if (!cls.find((c: any) => c.value === form.student_class)) {
+          setForm((f) => ({ ...f, student_class: cls[0]?.value ?? "" }));
+        }
+      })
+      .catch(() => {});
+  }, [form.department, form.role]);
+
+  // ── Form helpers ──────────────────────────────────────────────────────
+  const handleInput = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(BLANK_FORM);
+    setShowForm(true);
+  };
+
+  const openEdit = (p: UserProfile) => {
+    setEditingId(p.id);
+    setForm({
+      username: p.user.username,
+      password: "",
+      first_name: p.user.first_name ?? "",
+      last_name: p.user.last_name ?? "",
+      email: p.user.email ?? "",
+      role: p.role,
+      department: p.department ?? "western",
+      student_class: p.student_class ?? "",
+      instructor_type: p.instructor_type ?? "",
+      bio: p.bio ?? "",
+      phone: p.phone ?? "",
+      address: p.address ?? "",
+      parent_email: p.parent_email ?? "",
+    });
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+  };
+
+  // ── Submit (create or update) ─────────────────────────────────────────
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      if (editingId) {
+        // PATCH /admin/users/{id}/  — backend validates all fields together
+        const payload: Record<string, any> = {
+          first_name: form.first_name,
+          last_name: form.last_name,
+          email: form.email,
+          role: form.role,
+          department: form.department,
+          bio: form.bio,
+          phone: form.phone,
+          address: form.address,
+          parent_email: form.parent_email,
+          student_class: form.role === "student" ? form.student_class : "",
+          instructor_type:
+            form.role === "instructor" ? form.instructor_type : "",
+        };
+        await api.patch(`/admin/users/${editingId}/`, payload);
+        notify(true, "User updated successfully");
+      } else {
+        // POST /admin/users/ — full registration
+        await api.post("/admin/users/", {
+          username: form.username,
+          password: form.password,
+          first_name: form.first_name,
+          last_name: form.last_name,
+          email: form.email,
+          role: form.role,
+          department: form.department,
+          bio: form.bio || undefined,
+          phone: form.phone || undefined,
+          address: form.address || undefined,
+          parent_email: form.parent_email || undefined,
+          student_class:
+            form.role === "student" ? form.student_class : undefined,
+          instructor_type:
+            form.role === "instructor" ? form.instructor_type : undefined,
+        });
+        notify(true, "User created successfully");
+      }
+      closeForm();
+      fetchUsers();
+    } catch (err: any) {
+      notify(false, parseError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Delete ────────────────────────────────────────────────────────────
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      await api.delete(`/admin/users/${target.id}/`);
+      notify(true, `"${target.user.username}" permanently deleted`);
+      fetchUsers();
+    } catch (err: any) {
+      notify(false, parseError(err));
+    }
+  };
+
+  // ── Archive / restore ─────────────────────────────────────────────────
+  const toggleArchive = async (p: UserProfile) => {
+    try {
+      const url = p.is_archived
+        ? `/admin/users/${p.id}/restore/`
+        : `/admin/users/${p.id}/archive/`;
+      await api.post(url);
+      notify(true, p.is_archived ? "User restored" : "User archived");
+      fetchUsers();
+    } catch (err: any) {
+      notify(false, parseError(err));
+    }
+  };
+
+  // ── Reset password ────────────────────────────────────────────────────
+  const resetPassword = async (p: UserProfile) => {
+    const pwd = window.prompt(
+      `Set new password for "@${p.user.username}"\n(minimum 6 characters):`,
+    );
+    if (!pwd) return;
+    if (pwd.length < 6) {
+      notify(false, "Password must be at least 6 characters");
+      return;
+    }
+    try {
+      await api.post(`/admin/users/${p.id}/set_password/`, { password: pwd });
+      notify(true, `Password updated for @${p.user.username}`);
+    } catch (err: any) {
+      notify(false, parseError(err));
+    }
+  };
+
+  // ── Sync groups ───────────────────────────────────────────────────────
+  const syncGroups = async () => {
+    if (!selected.length) return;
     try {
       const userIds = profiles
         .filter((p) => selected.includes(p.id))
         .map((p) => p.user.id);
-      const resp = await api.post("/admin/sync-groups/", { user_ids: userIds });
-      setMessage({
-        type: "success",
-        text: `Synced ${resp.data.processed.length} users`,
-      });
+      const res = await api.post("/admin/sync-groups/", { user_ids: userIds });
+      notify(true, `Synced ${res.data.processed.length} users`);
       setSelected([]);
-      setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
-      setMessage({
-        type: "error",
-        text: "Sync failed: " + (err.response?.data || err.message),
-      });
+      notify(false, parseError(err));
     }
   };
 
-  const handleEdit = (profile: any) => {
-    setEditingId(profile.id);
-    setShowForm(true);
-    setNewUser({
-      username: profile.user.username,
-      password: "",
-      first_name: profile.user.first_name || "",
-      last_name: profile.user.last_name || "",
-      role: profile.role,
-      department: profile.department || "western",
-      student_class: profile.student_class || "",
-    });
-  };
+  const toggleSelect = (id: number) =>
+    setSelected((p) =>
+      p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
+    );
 
-  const handleDelete = async (profile: any) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
-    try {
-      await api.delete(`/profiles/${profile.id}/`);
-      setMessage({ type: "success", text: "User deleted successfully" });
-      const res = await api.get("/profiles/");
-      setProfiles(res.data);
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      setMessage({
-        type: "error",
-        text: "Delete failed: " + (err.response?.data || err.message),
-      });
-    }
-  };
+  const allSelected =
+    profiles.length > 0 && selected.length === profiles.length;
 
-  const handleInput = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const { name, value } = e.target;
-    setNewUser((p) => ({ ...p, [name]: value }));
-  };
+  // ── Display name helper ───────────────────────────────────────────────
+  const fullName = (u: ApiUser) =>
+    `${u.first_name} ${u.last_name}`.trim() || u.username;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingId) {
-        const payload: any = { ...newUser };
-        if (!payload.password) delete payload.password;
-        await api.patch(`/profiles/${editingId}/`, payload);
-        setMessage({ type: "success", text: "User updated successfully" });
-      } else {
-        await api.post("/register/", newUser);
-        setMessage({ type: "success", text: "User created successfully" });
-      }
-      setShowForm(false);
-      setEditingId(null);
-      setNewUser({
-        username: "",
-        password: "",
-        first_name: "",
-        last_name: "",
-        role: "student",
-        department: "western",
-        student_class: "JSS1",
-      });
-      const res = await api.get("/profiles/");
-      setProfiles(res.data);
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
-      setMessage({
-        type: "error",
-        text:
-          "Failed: " +
-          (err.response?.data?.username?.[0] ||
-            err.response?.data ||
-            err.message),
-      });
-    }
-  };
+  const initial = (u: ApiUser) =>
+    (u.first_name?.[0] ?? u.username[0]).toUpperCase();
 
-  const filteredProfiles = profiles.filter((p) => {
-    const roleMatch = filterRole === "all" || p.role === filterRole;
-    const deptMatch = filterDept === "all" || p.department === filterDept;
-    return roleMatch && deptMatch;
-  });
-
-  const stats = {
-    total: profiles.length,
-    students: profiles.filter((p) => p.role === "student").length,
-    instructors: profiles.filter((p) => p.role === "instructor").length,
-    admins: profiles.filter((p) => p.role === "admin").length,
-  };
-
+  // ─────────────────────────────────────────────────────────────────────
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 p-4 md:p-8"
-    >
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="mb-4">
-            <BackButton />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-3 sm:p-6">
+      <div className="max-w-7xl mx-auto space-y-5">
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <div className="mb-2">
+              <BackButton />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              👥 User Management
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Full CRUD — all changes are validated on the server before saving
+            </p>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            👥 User Management
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Manage all system users, roles, and permissions
-          </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          {[
-            {
-              label: "Total Users",
-              value: stats.total,
-              icon: "👥",
-              color: "blue",
-            },
-            {
-              label: "Students",
-              value: stats.students,
-              icon: "🎓",
-              color: "green",
-            },
-            {
-              label: "Instructors",
-              value: stats.instructors,
-              icon: "👨‍🏫",
-              color: "purple",
-            },
-            { label: "Admins", value: stats.admins, icon: "⚙️", color: "red" },
-          ].map((stat) => (
-            <motion.div
-              key={stat.label}
-              whileHover={{ translateY: -4 }}
-              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-t-4 border-${stat.color}-500`}
+          <div className="flex flex-wrap gap-2 sm:mt-8">
+            {selected.length > 0 && (
+              <button
+                onClick={syncGroups}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm
+                  font-medium bg-indigo-100 dark:bg-indigo-900/40
+                  text-indigo-700 dark:text-indigo-300 transition-colors"
+              >
+                🔄 Sync ({selected.length})
+              </button>
+            )}
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm
+                font-medium border transition-colors
+                ${
+                  showArchived
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700"
+                    : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700"
+                }`}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm font-medium">
-                    {stat.label}
-                  </p>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                    {stat.value}
-                  </p>
-                </div>
-                <span className="text-4xl">{stat.icon}</span>
-              </div>
-            </motion.div>
-          ))}
+              📦 {showArchived ? "Hide Archived" : "Archived"}
+            </button>
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm
+                font-medium bg-teal-600 hover:bg-teal-700 text-white
+                transition-colors shadow-sm"
+            >
+              ➕ Add User
+            </button>
+          </div>
         </div>
 
-        {/* Message Notification */}
+        {/* ── Toast ───────────────────────────────────────────────────── */}
         <AnimatePresence>
-          {message && (
+          {toast && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
+              key="toast"
+              initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className={`mb-4 p-4 rounded-lg ${
-                message.type === "success"
-                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-              }`}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className={`p-3.5 rounded-xl text-sm font-medium border
+                ${
+                  toast.ok
+                    ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800"
+                    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+                }`}
             >
-              {message.text}
+              {toast.ok ? "✅" : "❌"} {toast.msg}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Action Bar */}
-        <div className="mb-6 flex flex-col md:flex-row gap-4 justify-between items-center">
-          <div className="flex gap-3 flex-wrap">
-            {me &&
-              (me.role === "admin" ||
-                me.role === "teacher" ||
-                me.role === "instructor") && (
-                <AnimatedButton
-                  variant="primary"
-                  onClick={() => {
-                    setEditingId(null);
-                    setNewUser({
-                      username: "",
-                      password: "",
-                      first_name: "",
-                      last_name: "",
-                      role: "student",
-                      department: "western",
-                      student_class: "JSS1",
-                      instructor_type: "",
-                    });
-                    setShowForm(true);
-                  }}
-                  icon="➕"
-                >
-                  Add New User
-                </AnimatedButton>
-              )}
-            {selected.length > 0 && (
-              <AnimatedButton
-                variant="secondary"
-                icon="🔄"
-                onClick={handleSyncGroups}
+        {/* ── Stats ───────────────────────────────────────────────────── */}
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              {
+                label: "Total",
+                value: stats.total,
+                icon: "👥",
+                bg: "bg-slate-100 dark:bg-slate-800",
+                text: "text-slate-700 dark:text-slate-200",
+              },
+              {
+                label: "Students",
+                value: stats.students,
+                icon: "🎓",
+                bg: "bg-green-50 dark:bg-green-900/20",
+                text: "text-green-700 dark:text-green-300",
+              },
+              {
+                label: "Instructors",
+                value: stats.instructors,
+                icon: "👨‍🏫",
+                bg: "bg-violet-50 dark:bg-violet-900/20",
+                text: "text-violet-700 dark:text-violet-300",
+              },
+              {
+                label: "Admins",
+                value: stats.admins,
+                icon: "⚙️",
+                bg: "bg-red-50 dark:bg-red-900/20",
+                text: "text-red-700 dark:text-red-300",
+              },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className={`${s.bg} rounded-xl p-4 flex items-center gap-3`}
               >
-                Sync Groups ({selected.length})
-              </AnimatedButton>
-            )}
+                <span className="text-2xl">{s.icon}</span>
+                <div>
+                  <p className={`text-2xl font-bold leading-none ${s.text}`}>
+                    {s.value}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {s.label}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
+        )}
 
-          {/* Filters */}
-          <div className="flex gap-3">
-            <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="all">All Roles</option>
-              <option value="student">Students</option>
-              <option value="instructor">Instructors</option>
-              <option value="teacher">Teachers</option>
-              <option value="admin">Admins</option>
-              <option value="parent">Parents</option>
-            </select>
-            <select
-              value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="all">All Departments</option>
-              <option value="western">Western School</option>
-              <option value="arabic">Arabic School</option>
-              <option value="programming">Programming</option>
-            </select>
-          </div>
+        {/* ── Filters ─────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍  Search name, username, email, student ID…"
+            className={`${inputCls} flex-1`}
+          />
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            className={inputCls + " sm:w-40"}
+          >
+            <option value="all">All Roles</option>
+            <option value="student">Students</option>
+            <option value="instructor">Instructors</option>
+            <option value="teacher">Teachers</option>
+            <option value="school_admin">School Admins</option>
+            <option value="admin">Admins</option>
+            <option value="parent">Parents</option>
+          </select>
+          <select
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}
+            className={inputCls + " sm:w-40"}
+          >
+            <option value="all">All Depts</option>
+            <option value="western">Western</option>
+            <option value="arabic">Arabic</option>
+            <option value="programming">Programming</option>
+          </select>
         </div>
 
-        {/* User Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden"
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                <tr>
-                  <th className="px-6 py-3 text-left">
-                    <input
-                      type="checkbox"
-                      checked={
-                        selected.length === filteredProfiles.length &&
-                        filteredProfiles.length > 0
-                      }
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelected(filteredProfiles.map((p) => p.id));
-                        } else {
-                          setSelected([]);
-                        }
-                      }}
-                      className="w-4 h-4"
-                    />
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Username
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Department
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Class
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Student ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProfiles.length > 0 ? (
-                  filteredProfiles.map((p, idx) => (
-                    <motion.tr
-                      key={p.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                    >
-                      <td className="px-6 py-4">
+        {/* ── User table / cards ───────────────────────────────────────── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div
+                className="w-9 h-9 border-4 border-teal-500 border-t-transparent
+                rounded-full animate-spin"
+              />
+            </div>
+          ) : profiles.length === 0 ? (
+            <div className="text-center py-20 text-gray-400 dark:text-gray-500">
+              <p className="text-3xl mb-2">👤</p>
+              <p className="text-sm">No users match your filters</p>
+            </div>
+          ) : (
+            <>
+              {/* ── Desktop table ──────────────────────────────────────── */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-700 text-xs uppercase">
+                    <tr>
+                      <th className="px-4 py-3 w-8">
                         <input
                           type="checkbox"
-                          checked={selected.includes(p.id)}
-                          onChange={() => toggleSelect(p.id)}
-                          className="w-4 h-4"
+                          checked={allSelected}
+                          onChange={(e) =>
+                            setSelected(
+                              e.target.checked ? profiles.map((p) => p.id) : [],
+                            )
+                          }
+                          className="w-4 h-4 accent-teal-600 cursor-pointer"
                         />
-                      </td>
-                      <td className="px-6 py-4">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {`${p.user.first_name || ""} ${p.user.last_name || ""}`.trim() ||
-                              p.user.username}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {p.user.first_name} {p.user.last_name}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                            p.role === "admin"
-                              ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                              : p.role === "instructor"
-                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                                : p.role === "student"
-                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                  : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                          }`}
+                      </th>
+                      {[
+                        "Name & Email",
+                        "Username",
+                        "Role",
+                        "Dept",
+                        "Class",
+                        "ID",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-left font-semibold
+                          text-gray-600 dark:text-gray-300 whitespace-nowrap"
                         >
-                          {p.role.charAt(0).toUpperCase() + p.role.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                        {p.department === "western"
-                          ? "Western"
-                          : p.department === "arabic"
-                            ? "Arabic"
-                            : "Programming"}
-                      </td>
-                      <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                        {p.student_class || "-"}
-                      </td>
-                      <td className="px-6 py-4 text-gray-700 dark:text-gray-300 font-mono text-sm">
-                        {p.student_id || "-"}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <AnimatedButton
-                            size="sm"
-                            variant="primary"
-                            icon="✏️"
-                            onClick={() => handleEdit(p)}
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {profiles.map((p) => (
+                      <motion.tr
+                        key={p.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
+                          ${p.is_archived ? "opacity-40" : ""}`}
+                      >
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selected.includes(p.id)}
+                            onChange={() => toggleSelect(p.id)}
+                            className="w-4 h-4 accent-teal-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className="w-8 h-8 rounded-full bg-gradient-to-br
+                              from-teal-500 to-indigo-600 flex items-center justify-center
+                              text-white font-bold text-xs shrink-0"
+                            >
+                              {initial(p.user)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900 dark:text-white truncate">
+                                {fullName(p.user)}
+                              </p>
+                              <p className="text-xs text-gray-400 truncate">
+                                {p.user.email || "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                          @{p.user.username}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium
+                            ${ROLE_BADGE[p.role] ?? "bg-gray-100 text-gray-700"}`}
                           >
-                            Edit
-                          </AnimatedButton>
-                          <AnimatedButton
-                            size="sm"
-                            variant="danger"
-                            icon="🗑️"
-                            onClick={() => handleDelete(p)}
-                          >
-                            Delete
-                          </AnimatedButton>
-                          <AnimatedButton
-                            size="sm"
-                            variant="secondary"
-                            icon="🔒"
-                            onClick={async () => {
-                              const pwd = window.prompt("Enter new password:");
-                              if (pwd) {
-                                try {
-                                  await api.post(
-                                    `/profiles/${p.id}/set_password/`,
-                                    {
-                                      password: pwd,
-                                    },
-                                  );
-                                  setMessage({
-                                    type: "success",
-                                    text: "Password updated",
-                                  });
-                                  setTimeout(() => setMessage(null), 3000);
-                                } catch (err: any) {
-                                  setMessage({
-                                    type: "error",
-                                    text:
-                                      "Password change failed: " +
-                                      (err.response?.data || err.message),
-                                  });
-                                }
-                              }
-                            }}
-                          >
-                            Password
-                          </AnimatedButton>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-6 py-12 text-center text-gray-500 dark:text-gray-400"
-                    >
-                      No users found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
+                            {p.role.replace("_", " ")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400 capitalize">
+                          {p.department ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                          {p.student_class ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-400">
+                          {p.student_id ?? "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 flex-nowrap">
+                            <Btn color="blue" onClick={() => openEdit(p)}>
+                              ✏️
+                            </Btn>
+                            <Btn color="amber" onClick={() => resetPassword(p)}>
+                              🔑
+                            </Btn>
+                            <Btn
+                              color="orange"
+                              onClick={() => toggleArchive(p)}
+                            >
+                              {p.is_archived ? "♻️" : "📦"}
+                            </Btn>
+                            <Btn color="red" onClick={() => setDeleteTarget(p)}>
+                              🗑️
+                            </Btn>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-        {/* Modal Form */}
+              {/* ── Mobile cards ───────────────────────────────────────── */}
+              <div className="md:hidden divide-y dark:divide-gray-700">
+                {profiles.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`p-4 ${p.is_archived ? "opacity-40" : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(p.id)}
+                        onChange={() => toggleSelect(p.id)}
+                        className="mt-1 w-4 h-4 accent-teal-600 shrink-0"
+                      />
+                      <div
+                        className="w-9 h-9 rounded-full bg-gradient-to-br
+                        from-teal-500 to-indigo-600 flex items-center justify-center
+                        text-white font-bold shrink-0"
+                      >
+                        {initial(p.user)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <p
+                            className="font-semibold text-sm text-gray-900
+                            dark:text-white truncate"
+                          >
+                            {fullName(p.user)}
+                          </p>
+                          <span
+                            className={`shrink-0 px-2 py-0.5 rounded-full text-xs
+                            font-medium ${ROLE_BADGE[p.role] ?? "bg-gray-100 text-gray-700"}`}
+                          >
+                            {p.role.replace("_", " ")}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          @{p.user.username}
+                          {p.department && ` · ${p.department}`}
+                          {p.student_class && ` · ${p.student_class}`}
+                        </p>
+                        {p.user.email && (
+                          <p className="text-xs text-gray-400 truncate">
+                            {p.user.email}
+                          </p>
+                        )}
+                        <div className="flex gap-1.5 mt-2.5 flex-wrap">
+                          <Btn color="blue" onClick={() => openEdit(p)}>
+                            ✏️ Edit
+                          </Btn>
+                          <Btn color="amber" onClick={() => resetPassword(p)}>
+                            🔑 Pwd
+                          </Btn>
+                          <Btn color="orange" onClick={() => toggleArchive(p)}>
+                            {p.is_archived ? "♻️ Restore" : "📦 Archive"}
+                          </Btn>
+                          <Btn color="red" onClick={() => setDeleteTarget(p)}>
+                            🗑️ Delete
+                          </Btn>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════
+            CREATE / EDIT MODAL
+        ══════════════════════════════════════════════════════════════ */}
         <AnimatePresence>
           {showForm && (
             <motion.div
+              key="form-overlay"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-              onClick={() => {
-                setShowForm(false);
-                setEditingId(null);
-              }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm
+                flex items-center justify-center p-3 sm:p-6"
+              onClick={closeForm}
             >
               <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.96, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+                exit={{ scale: 0.96, opacity: 0 }}
+                transition={{ duration: 0.18 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-screen overflow-y-auto"
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl
+                  w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
               >
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                  {editingId ? "✏️ Edit User" : "➕ Add New User"}
-                </h2>
+                {/* Modal header */}
+                <div
+                  className="flex items-center justify-between px-6 py-4
+                  border-b dark:border-gray-700 shrink-0"
+                >
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                    {editingId ? "✏️ Edit User" : "➕ Create User"}
+                  </h2>
+                  <button
+                    onClick={closeForm}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg
+                      text-gray-400 hover:text-gray-700 dark:hover:text-gray-200
+                      hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        First Name
-                      </label>
-                      <input
-                        name="first_name"
-                        placeholder="First name"
-                        value={newUser.first_name}
-                        onChange={handleInput}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Last Name
-                      </label>
-                      <input
-                        name="last_name"
-                        placeholder="Last name"
-                        value={newUser.last_name}
-                        onChange={handleInput}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Username
-                      </label>
-                      <input
-                        name="username"
-                        placeholder="Enter username"
-                        value={newUser.username}
-                        onChange={handleInput}
-                        required
-                        disabled={!!editingId}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-600 transition"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Password {editingId && "(leave blank to keep current)"}
-                      </label>
-                      <input
-                        name="password"
-                        type="password"
-                        placeholder="Enter password"
-                        value={newUser.password}
-                        onChange={handleInput}
-                        required={!editingId}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Role
-                      </label>
-                      <select
-                        name="role"
-                        value={newUser.role}
-                        onChange={handleInput}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                      >
-                        <option value="student">Student</option>
-                        <option value="parent">Parent</option>
-                        <option value="teacher">Teacher</option>
-                        <option value="instructor">Instructor</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-
-                    {newUser.role === "instructor" && (
+                {/* Scrollable body */}
+                <form
+                  onSubmit={handleSubmit}
+                  className="flex-1 overflow-y-auto px-6 py-5 space-y-6"
+                >
+                  {/* Identity */}
+                  <div>
+                    <p className={labelCls + " mb-3"}>Identity</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Instructor Type
-                        </label>
-                        <select
-                          name="instructor_type"
-                          value={newUser.instructor_type}
+                        <label className={labelCls}>First Name</label>
+                        <input
+                          name="first_name"
+                          value={form.first_name}
                           onChange={handleInput}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                        >
-                          <option value="">Select Type</option>
-                          <option value="subject">Subject Instructor</option>
-                          <option value="class">Class Instructor</option>
-                        </select>
+                          placeholder="Fatima"
+                          className={inputCls}
+                        />
                       </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Department
-                      </label>
-                      <select
-                        name="department"
-                        value={newUser.department}
-                        onChange={handleInput}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                      >
-                        <option value="western">Western School</option>
-                        <option value="arabic">Arabic School</option>
-                        <option value="programming">Programming School</option>
-                      </select>
-                    </div>
-
-                    {newUser.role === "student" && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Class
-                        </label>
-                        <select
-                          name="student_class"
-                          value={newUser.student_class}
+                        <label className={labelCls}>Last Name</label>
+                        <input
+                          name="last_name"
+                          value={form.last_name}
                           onChange={handleInput}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                        >
-                          {classChoices.map((cls) => (
-                            <option key={cls.value} value={cls.value}>
-                              {cls.label}
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Al-Rashid"
+                          className={inputCls}
+                        />
                       </div>
-                    )}
+                      <div>
+                        <label className={labelCls}>
+                          Username <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          name="username"
+                          value={form.username}
+                          onChange={handleInput}
+                          required
+                          disabled={!!editingId}
+                          placeholder="fatima123"
+                          className={inputCls}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Email</label>
+                        <input
+                          name="email"
+                          type="email"
+                          value={form.email}
+                          onChange={handleInput}
+                          placeholder="user@example.com"
+                          className={inputCls}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className={labelCls}>
+                          {editingId ? (
+                            "New Password — leave blank to keep current"
+                          ) : (
+                            <>
+                              Password <span className="text-red-500">*</span>
+                            </>
+                          )}
+                        </label>
+                        <input
+                          name="password"
+                          type="password"
+                          value={form.password}
+                          onChange={handleInput}
+                          required={!editingId}
+                          placeholder="Min 6 characters"
+                          className={inputCls}
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <AnimatedButton
-                      variant="secondary"
-                      type="button"
-                      onClick={() => {
-                        setShowForm(false);
-                        setEditingId(null);
-                      }}
-                    >
-                      Cancel
-                    </AnimatedButton>
-                    <AnimatedButton variant="success" type="submit" icon="✨">
-                      {editingId ? "Update User" : "Create User"}
-                    </AnimatedButton>
+                  {/* Role & school */}
+                  <div>
+                    <p className={labelCls + " mb-3"}>Role & School</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelCls}>
+                          Role <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          name="role"
+                          value={form.role}
+                          onChange={handleInput}
+                          className={inputCls}
+                        >
+                          <option value="student">Student</option>
+                          <option value="parent">Parent</option>
+                          <option value="teacher">Teacher</option>
+                          <option value="instructor">Instructor</option>
+                          <option value="school_admin">School Admin</option>
+                          <option value="admin">Admin</option>
+                          <option value="super_admin">Super Admin</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Department</label>
+                        <select
+                          name="department"
+                          value={form.department}
+                          onChange={handleInput}
+                          className={inputCls}
+                        >
+                          <option value="western">🌍 Western School</option>
+                          <option value="arabic">🕌 Arabic School</option>
+                          <option value="programming">💻 Programming</option>
+                        </select>
+                      </div>
+                      {form.role === "instructor" && (
+                        <div>
+                          <label className={labelCls}>
+                            Instructor Type{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            name="instructor_type"
+                            value={form.instructor_type}
+                            onChange={handleInput}
+                            className={inputCls}
+                          >
+                            <option value="">— Select type —</option>
+                            <option value="subject">Subject Instructor</option>
+                            <option value="class">Class Instructor</option>
+                          </select>
+                        </div>
+                      )}
+                      {form.role === "student" && (
+                        <div>
+                          <label className={labelCls}>Class</label>
+                          <select
+                            name="student_class"
+                            value={form.student_class}
+                            onChange={handleInput}
+                            className={inputCls}
+                          >
+                            {classChoices.map((c) => (
+                              <option key={c.value} value={c.value}>
+                                {c.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Additional info */}
+                  <div>
+                    <p className={labelCls + " mb-3"}>Additional Info</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelCls}>Phone</label>
+                        <input
+                          name="phone"
+                          value={form.phone}
+                          onChange={handleInput}
+                          placeholder="+234…"
+                          className={inputCls}
+                        />
+                      </div>
+                      {form.role === "student" && (
+                        <div>
+                          <label className={labelCls}>Parent Email</label>
+                          <input
+                            name="parent_email"
+                            type="email"
+                            value={form.parent_email}
+                            onChange={handleInput}
+                            placeholder="parent@example.com"
+                            className={inputCls}
+                          />
+                        </div>
+                      )}
+                      <div className="sm:col-span-2">
+                        <label className={labelCls}>Address</label>
+                        <textarea
+                          name="address"
+                          value={form.address}
+                          onChange={handleInput}
+                          rows={2}
+                          placeholder="Street, City…"
+                          className={inputCls + " resize-none"}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className={labelCls}>Bio</label>
+                        <textarea
+                          name="bio"
+                          value={form.bio}
+                          onChange={handleInput}
+                          rows={2}
+                          placeholder="Short bio…"
+                          className={inputCls + " resize-none"}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </form>
+
+                {/* Modal footer */}
+                <div className="flex gap-3 px-6 py-4 border-t dark:border-gray-700 shrink-0">
+                  <button
+                    type="button"
+                    onClick={closeForm}
+                    className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium
+                      bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                      hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmit as any}
+                    disabled={submitting}
+                    className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium
+                      bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400
+                      text-white transition-colors"
+                  >
+                    {submitting
+                      ? "Saving…"
+                      : editingId
+                        ? "💾 Save Changes"
+                        : "✨ Create User"}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ══════════════════════════════════════════════════════════════
+            DELETE CONFIRM MODAL
+        ══════════════════════════════════════════════════════════════ */}
+        <AnimatePresence>
+          {deleteTarget && (
+            <motion.div
+              key="delete-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm
+                flex items-center justify-center p-4"
+              onClick={() => setDeleteTarget(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl
+                  p-6 w-full max-w-sm text-center"
+              >
+                <div className="text-5xl mb-3">⚠️</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                  Delete User?
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                  Permanently delete{" "}
+                  <strong className="text-gray-900 dark:text-white">
+                    @{deleteTarget.user.username}
+                  </strong>{" "}
+                  and all their data?{" "}
+                  <span className="text-red-500 font-medium">
+                    This cannot be undone.
+                  </span>
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteTarget(null)}
+                    className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium
+                      bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                      hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium
+                      bg-red-600 hover:bg-red-700 text-white transition-colors"
+                  >
+                    🗑️ Delete Forever
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 };
+
+// ─── Small action button (static colour map) ──────────────────────────────────
+const BTN_COLORS: Record<string, string> = {
+  blue: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40",
+  amber:
+    "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40",
+  orange:
+    "bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40",
+  red: "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40",
+};
+
+const Btn: React.FC<{
+  color: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}> = ({ color, onClick, children }) => (
+  <button
+    onClick={onClick}
+    className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors
+      ${BTN_COLORS[color] ?? BTN_COLORS.blue}`}
+  >
+    {children}
+  </button>
+);
 
 export default ManageUsers;

@@ -1,9 +1,7 @@
 import React, { Suspense } from "react";
-import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
-import Sidebar from "./components/Sidebar";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoadingAnimation from "./components/LoadingAnimation";
 
-// Lazy load all pages for better performance
 const Login = React.lazy(() => import("./pages/Login"));
 const Signup = React.lazy(() => import("./pages/Signup"));
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
@@ -48,6 +46,7 @@ import AIChat from "./components/AIChat";
 import Notifications from "./components/Notifications";
 import { getDashboardRouteByRole, getUserData } from "./utils/authUtils";
 
+// ─── Smart home router ────────────────────────────────────────────────────────
 const HomeRouter: React.FC = () => {
   const token = localStorage.getItem("access_token");
 
@@ -67,29 +66,35 @@ const HomeRouter: React.FC = () => {
   return <Landing />;
 };
 
+// ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
-  const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const token = localStorage.getItem("access_token");
 
   return (
     <BrowserRouter>
+     
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-        <Navbar toggleSidebar={() => setSidebarOpen((v) => !v)} />
-        {token && (
-          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        )}
-        <main className={`pt-16 ${token ? "md:ml-64" : ""}`}>
+       
+        {token && <Navbar />}
+
+       
+        <main className={token ? "pt-16" : ""}>
           <Suspense
             fallback={<LoadingAnimation fullScreen message="Loading page..." />}
           >
             <Routes>
-              {/* Home Route - redirects to appropriate dashboard if logged in */}
+              {/* Public */}
               <Route path="/" element={<HomeRouter />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/programs" element={<Programs />} />
+              <Route path="/locations" element={<Locations />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/practice" element={<PracticeQuestions />} />
 
-              {/* Protected Routes */}
+              {/* Dashboards */}
               <Route
                 path="/admin-dashboard"
                 element={
@@ -130,7 +135,40 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/instructor-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <InstructorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/subject-instructor-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <SubjectInstructorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/class-instructor-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <ClassInstructorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
 
+              {/* Core pages */}
               <Route
                 path="/courses"
                 element={
@@ -212,36 +250,6 @@ function App() {
                 }
               />
               <Route
-                path="/instructor-dashboard"
-                element={
-                  <ProtectedRoute>
-                    <InstructorDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/subject-instructor-dashboard"
-                element={
-                  <ProtectedRoute>
-                    <SubjectInstructorDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/class-instructor-dashboard"
-                element={
-                  <ProtectedRoute>
-                    <ClassInstructorDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/about" element={<About />} />
-              <Route path="/programs" element={<Programs />} />
-              <Route path="/locations" element={<Locations />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="/practice" element={<PracticeQuestions />} />
-              <Route path="/manage-users" element={<ManageUsers />} />
-              <Route
                 path="/profile"
                 element={
                   <ProtectedRoute>
@@ -257,17 +265,12 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/manage-users" element={<ManageUsers />} />
             </Routes>
           </Suspense>
         </main>
+
+        {/* Global floating components — mobile-aware positioning handled inside each */}
         <AIChat />
         <Notifications />
       </div>
