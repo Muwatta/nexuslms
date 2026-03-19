@@ -1,0 +1,75 @@
+// frontend/src/api.ts
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: "/api", 
+  withCredentials: true, 
+  headers: {
+    "Content-Type": "application/json",
+  },
+  timeout: 15000,
+});
+
+api.interceptors.request.use(
+  (config) => config,
+  (error) => Promise.reject(error),
+);
+
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: () => void; reject: (e: unknown) => void }> =
+  [];
+
+function processQueue(error: unknown) {
+  failedQueue.forEach(({ resolve, reject }) =>
+    error ? reject(error) : resolve(),
+  );
+  failedQueue = [];
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    const isAuthEndpoint =
+      originalRequest?.url?.includes("/auth/login") ||
+      originalRequest?.url?.includes("/auth/refresh") ||
+      originalRequest?.url?.includes("/auth/logout");
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint
+    ) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve: () => resolve(api(originalRequest)),
+            reject,
+          });
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        await axios.post("/api/auth/refresh/", {}, { withCredentials: true });
+        processQueue(null);
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError);
+        // Refresh failed, clear local state and redirect to login
+        localStorage.removeItem("user_data");
+        window.location.href = "/login";
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
+
+export default api;
